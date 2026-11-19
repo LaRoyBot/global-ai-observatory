@@ -1352,6 +1352,7 @@ function drawRoutes(now) {
   if (!state.showRoutes) return;
   const vols = currentVolumes();
   let fadeF = 1;
+  if (state.fade && !(state.fade.prev instanceof Map)) state.fade = null; // defensive: malformed payload
   if (state.fade) {
     fadeF = Math.min(1, (now - state.fade.t0) / CFG.crossfadeMs);
     fadeF = fadeF * fadeF * (3 - 2 * fadeF); // smoothstep
@@ -1965,8 +1966,10 @@ function refreshUI() {
 /* ---------- 16. TIME EXPLORER ---------- */
 function setPeriod(index, announceChange = true) {
   if (index < 0 || index >= PERIODS.length || index === state.periodIdx) return;
+  // Cross-fade payload must match the renderer's contract: { prev: Map, t0 }.
+  const prevVolumes = currentVolumes();
   state.periodIdx = index;
-  state.fade = 1;
+  state.fade = state.reducedMotion ? null : { prev: prevVolumes, t0: performance.now() };
   hideTooltip();
   updateAllocation();
   refreshUI();

@@ -1,0 +1,8 @@
+node_modules/
+data/observatory.db
+data/observatory.db-*
+data/cache/
+*.log
+.env
+_check.js
+.DS_Store

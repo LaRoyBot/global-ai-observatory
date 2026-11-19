@@ -1,0 +1,1164 @@
+{
+  "fixture": "ai-token-flows-demo",
+  "version": "1.0.0",
+  "evidence_class": "synthetic",
+  "generated": "2026-11-19",
+  "methodology": "Hand-authored deterministic fictional bilateral relationships. origin=serving country, destination=consuming country. inputTokens travel consumer->server, outputTokens server->consumer. Not measured traffic.",
+  "records": [
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "IND",
+      "inputTokens": 180000000000,
+      "outputTokens": 140000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "GBR",
+      "inputTokens": 140000000000,
+      "outputTokens": 105000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "DEU",
+      "inputTokens": 110000000000,
+      "outputTokens": 85000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "JPN",
+      "inputTokens": 120000000000,
+      "outputTokens": 95000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "BRA",
+      "inputTokens": 70000000000,
+      "outputTokens": 52000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "CAN",
+      "inputTokens": 95000000000,
+      "outputTokens": 72000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "AUS",
+      "inputTokens": 60000000000,
+      "outputTokens": 46000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "KOR",
+      "inputTokens": 55000000000,
+      "outputTokens": 42000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "FRA",
+      "inputTokens": 75000000000,
+      "outputTokens": 58000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "SGP",
+      "inputTokens": 48000000000,
+      "outputTokens": 38000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "USA",
+      "destination": "ARE",
+      "inputTokens": 32000000000,
+      "outputTokens": 24000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "IRL",
+      "destination": "GBR",
+      "inputTokens": 90000000000,
+      "outputTokens": 68000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "IRL",
+      "destination": "DEU",
+      "inputTokens": 72000000000,
+      "outputTokens": 55000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "IRL",
+      "destination": "IND",
+      "inputTokens": 60000000000,
+      "outputTokens": 45000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "IRL",
+      "destination": "FRA",
+      "inputTokens": 45000000000,
+      "outputTokens": 34000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "IRL",
+      "destination": "BRA",
+      "inputTokens": 30000000000,
+      "outputTokens": 22000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "SGP",
+      "destination": "IND",
+      "inputTokens": 105000000000,
+      "outputTokens": 80000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "SGP",
+      "destination": "AUS",
+      "inputTokens": 52000000000,
+      "outputTokens": 40000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "SGP",
+      "destination": "JPN",
+      "inputTokens": 46000000000,
+      "outputTokens": 36000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "SGP",
+      "destination": "KOR",
+      "inputTokens": 34000000000,
+      "outputTokens": 26000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "DEU",
+      "destination": "GBR",
+      "inputTokens": 28000000000,
+      "outputTokens": 21000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "JPN",
+      "destination": "USA",
+      "inputTokens": 40000000000,
+      "outputTokens": 32000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "GBR",
+      "destination": "IND",
+      "inputTokens": 36000000000,
+      "outputTokens": 27000000000
+    },
+    {
+      "period": "2026-01",
+      "origin": "KOR",
+      "destination": "JPN",
+      "inputTokens": 14000000000,
+      "outputTokens": 11000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "IND",
+      "inputTokens": 205000000000,
+      "outputTokens": 162000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "GBR",
+      "inputTokens": 148000000000,
+      "outputTokens": 112000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "DEU",
+      "inputTokens": 117000000000,
+      "outputTokens": 91000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "JPN",
+      "inputTokens": 127000000000,
+      "outputTokens": 101000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "BRA",
+      "inputTokens": 78000000000,
+      "outputTokens": 58000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "CAN",
+      "inputTokens": 100000000000,
+      "outputTokens": 76000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "AUS",
+      "inputTokens": 65000000000,
+      "outputTokens": 50000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "KOR",
+      "inputTokens": 59000000000,
+      "outputTokens": 45000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "FRA",
+      "inputTokens": 79000000000,
+      "outputTokens": 62000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "SGP",
+      "inputTokens": 52000000000,
+      "outputTokens": 41000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "USA",
+      "destination": "ARE",
+      "inputTokens": 36000000000,
+      "outputTokens": 27000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "IRL",
+      "destination": "GBR",
+      "inputTokens": 95000000000,
+      "outputTokens": 72000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "IRL",
+      "destination": "DEU",
+      "inputTokens": 76000000000,
+      "outputTokens": 59000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "IRL",
+      "destination": "IND",
+      "inputTokens": 72000000000,
+      "outputTokens": 54000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "IRL",
+      "destination": "FRA",
+      "inputTokens": 48000000000,
+      "outputTokens": 37000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "IRL",
+      "destination": "BRA",
+      "inputTokens": 34000000000,
+      "outputTokens": 25000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "SGP",
+      "destination": "IND",
+      "inputTokens": 117000000000,
+      "outputTokens": 90000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "SGP",
+      "destination": "AUS",
+      "inputTokens": 56000000000,
+      "outputTokens": 43000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "SGP",
+      "destination": "JPN",
+      "inputTokens": 49000000000,
+      "outputTokens": 39000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "SGP",
+      "destination": "KOR",
+      "inputTokens": 36000000000,
+      "outputTokens": 28000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "SGP",
+      "destination": "ARE",
+      "inputTokens": 18000000000,
+      "outputTokens": 14000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "DEU",
+      "destination": "GBR",
+      "inputTokens": 30000000000,
+      "outputTokens": 23000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "JPN",
+      "destination": "USA",
+      "inputTokens": 43000000000,
+      "outputTokens": 34000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "GBR",
+      "destination": "IND",
+      "inputTokens": 41000000000,
+      "outputTokens": 31000000000
+    },
+    {
+      "period": "2026-02",
+      "origin": "KOR",
+      "destination": "JPN",
+      "inputTokens": 15000000000,
+      "outputTokens": 12000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "IND",
+      "inputTokens": 232000000000,
+      "outputTokens": 186000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "GBR",
+      "inputTokens": 156000000000,
+      "outputTokens": 120000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "DEU",
+      "inputTokens": 124000000000,
+      "outputTokens": 97000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "JPN",
+      "inputTokens": 134000000000,
+      "outputTokens": 107000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "BRA",
+      "inputTokens": 86000000000,
+      "outputTokens": 65000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "CAN",
+      "inputTokens": 106000000000,
+      "outputTokens": 81000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "AUS",
+      "inputTokens": 70000000000,
+      "outputTokens": 54000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "KOR",
+      "inputTokens": 63000000000,
+      "outputTokens": 49000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "FRA",
+      "inputTokens": 84000000000,
+      "outputTokens": 66000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "SGP",
+      "inputTokens": 56000000000,
+      "outputTokens": 45000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "USA",
+      "destination": "ARE",
+      "inputTokens": 40000000000,
+      "outputTokens": 31000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "IRL",
+      "destination": "GBR",
+      "inputTokens": 100000000000,
+      "outputTokens": 77000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "IRL",
+      "destination": "DEU",
+      "inputTokens": 81000000000,
+      "outputTokens": 63000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "IRL",
+      "destination": "IND",
+      "inputTokens": 85000000000,
+      "outputTokens": 65000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "IRL",
+      "destination": "FRA",
+      "inputTokens": 51000000000,
+      "outputTokens": 39000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "IRL",
+      "destination": "BRA",
+      "inputTokens": 38000000000,
+      "outputTokens": 28000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "SGP",
+      "destination": "IND",
+      "inputTokens": 130000000000,
+      "outputTokens": 101000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "SGP",
+      "destination": "AUS",
+      "inputTokens": 60000000000,
+      "outputTokens": 47000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "SGP",
+      "destination": "JPN",
+      "inputTokens": 52000000000,
+      "outputTokens": 41000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "SGP",
+      "destination": "KOR",
+      "inputTokens": 39000000000,
+      "outputTokens": 30000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "SGP",
+      "destination": "ARE",
+      "inputTokens": 24000000000,
+      "outputTokens": 19000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "ARE",
+      "destination": "IND",
+      "inputTokens": 25000000000,
+      "outputTokens": 19000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "DEU",
+      "destination": "GBR",
+      "inputTokens": 32000000000,
+      "outputTokens": 24000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "JPN",
+      "destination": "USA",
+      "inputTokens": 46000000000,
+      "outputTokens": 37000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "GBR",
+      "destination": "IND",
+      "inputTokens": 47000000000,
+      "outputTokens": 36000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "KOR",
+      "destination": "JPN",
+      "inputTokens": 16000000000,
+      "outputTokens": 12000000000
+    },
+    {
+      "period": "2026-03",
+      "origin": "BRA",
+      "destination": "USA",
+      "inputTokens": 9000000000,
+      "outputTokens": 7000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "IND",
+      "inputTokens": 262000000000,
+      "outputTokens": 212000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "GBR",
+      "inputTokens": 165000000000,
+      "outputTokens": 128000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "DEU",
+      "inputTokens": 132000000000,
+      "outputTokens": 104000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "JPN",
+      "inputTokens": 142000000000,
+      "outputTokens": 114000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "BRA",
+      "inputTokens": 95000000000,
+      "outputTokens": 72000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "CAN",
+      "inputTokens": 112000000000,
+      "outputTokens": 86000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "AUS",
+      "inputTokens": 76000000000,
+      "outputTokens": 59000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "KOR",
+      "inputTokens": 68000000000,
+      "outputTokens": 53000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "FRA",
+      "inputTokens": 89000000000,
+      "outputTokens": 70000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "SGP",
+      "inputTokens": 60000000000,
+      "outputTokens": 48000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "USA",
+      "destination": "ARE",
+      "inputTokens": 45000000000,
+      "outputTokens": 35000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "IRL",
+      "destination": "GBR",
+      "inputTokens": 106000000000,
+      "outputTokens": 82000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "IRL",
+      "destination": "DEU",
+      "inputTokens": 86000000000,
+      "outputTokens": 67000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "IRL",
+      "destination": "IND",
+      "inputTokens": 99000000000,
+      "outputTokens": 77000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "IRL",
+      "destination": "FRA",
+      "inputTokens": 54000000000,
+      "outputTokens": 42000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "IRL",
+      "destination": "BRA",
+      "inputTokens": 42000000000,
+      "outputTokens": 32000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "SGP",
+      "destination": "IND",
+      "inputTokens": 144000000000,
+      "outputTokens": 113000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "SGP",
+      "destination": "AUS",
+      "inputTokens": 65000000000,
+      "outputTokens": 51000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "SGP",
+      "destination": "JPN",
+      "inputTokens": 56000000000,
+      "outputTokens": 44000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "SGP",
+      "destination": "KOR",
+      "inputTokens": 42000000000,
+      "outputTokens": 33000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "SGP",
+      "destination": "ARE",
+      "inputTokens": 30000000000,
+      "outputTokens": 24000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "ARE",
+      "destination": "IND",
+      "inputTokens": 42000000000,
+      "outputTokens": 32000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "ARE",
+      "destination": "GBR",
+      "inputTokens": 16000000000,
+      "outputTokens": 12000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "IND",
+      "destination": "ARE",
+      "inputTokens": 12000000000,
+      "outputTokens": 9000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "DEU",
+      "destination": "GBR",
+      "inputTokens": 35000000000,
+      "outputTokens": 27000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "JPN",
+      "destination": "USA",
+      "inputTokens": 50000000000,
+      "outputTokens": 40000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "GBR",
+      "destination": "IND",
+      "inputTokens": 53000000000,
+      "outputTokens": 41000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "KOR",
+      "destination": "JPN",
+      "inputTokens": 17000000000,
+      "outputTokens": 13000000000
+    },
+    {
+      "period": "2026-04",
+      "origin": "BRA",
+      "destination": "USA",
+      "inputTokens": 12000000000,
+      "outputTokens": 9000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "IND",
+      "inputTokens": 292000000000,
+      "outputTokens": 238000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "GBR",
+      "inputTokens": 175000000000,
+      "outputTokens": 138000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "DEU",
+      "inputTokens": 141000000000,
+      "outputTokens": 112000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "JPN",
+      "inputTokens": 151000000000,
+      "outputTokens": 122000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "BRA",
+      "inputTokens": 105000000000,
+      "outputTokens": 81000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "CAN",
+      "inputTokens": 118000000000,
+      "outputTokens": 93000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "AUS",
+      "inputTokens": 82000000000,
+      "outputTokens": 64000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "KOR",
+      "inputTokens": 73000000000,
+      "outputTokens": 57000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "FRA",
+      "inputTokens": 94000000000,
+      "outputTokens": 75000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "SGP",
+      "inputTokens": 65000000000,
+      "outputTokens": 52000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "USA",
+      "destination": "ARE",
+      "inputTokens": 50000000000,
+      "outputTokens": 39000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IRL",
+      "destination": "GBR",
+      "inputTokens": 113000000000,
+      "outputTokens": 88000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IRL",
+      "destination": "DEU",
+      "inputTokens": 92000000000,
+      "outputTokens": 72000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IRL",
+      "destination": "IND",
+      "inputTokens": 114000000000,
+      "outputTokens": 90000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IRL",
+      "destination": "FRA",
+      "inputTokens": 58000000000,
+      "outputTokens": 45000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IRL",
+      "destination": "BRA",
+      "inputTokens": 47000000000,
+      "outputTokens": 36000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "SGP",
+      "destination": "IND",
+      "inputTokens": 159000000000,
+      "outputTokens": 126000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "SGP",
+      "destination": "AUS",
+      "inputTokens": 70000000000,
+      "outputTokens": 55000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "SGP",
+      "destination": "JPN",
+      "inputTokens": 60000000000,
+      "outputTokens": 48000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "SGP",
+      "destination": "KOR",
+      "inputTokens": 45000000000,
+      "outputTokens": 35000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "SGP",
+      "destination": "ARE",
+      "inputTokens": 37000000000,
+      "outputTokens": 29000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "ARE",
+      "destination": "IND",
+      "inputTokens": 62000000000,
+      "outputTokens": 48000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "ARE",
+      "destination": "GBR",
+      "inputTokens": 26000000000,
+      "outputTokens": 20000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IND",
+      "destination": "ARE",
+      "inputTokens": 22000000000,
+      "outputTokens": 17000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "IND",
+      "destination": "SGP",
+      "inputTokens": 10000000000,
+      "outputTokens": 8000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "DEU",
+      "destination": "GBR",
+      "inputTokens": 37000000000,
+      "outputTokens": 29000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "JPN",
+      "destination": "USA",
+      "inputTokens": 54000000000,
+      "outputTokens": 43000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "GBR",
+      "destination": "IND",
+      "inputTokens": 59000000000,
+      "outputTokens": 46000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "KOR",
+      "destination": "JPN",
+      "inputTokens": 18000000000,
+      "outputTokens": 14000000000
+    },
+    {
+      "period": "2026-05",
+      "origin": "BRA",
+      "destination": "USA",
+      "inputTokens": 15000000000,
+      "outputTokens": 11000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "IND",
+      "inputTokens": 320000000000,
+      "outputTokens": 260000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "GBR",
+      "inputTokens": 185000000000,
+      "outputTokens": 150000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "DEU",
+      "inputTokens": 150000000000,
+      "outputTokens": 120000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "JPN",
+      "inputTokens": 160000000000,
+      "outputTokens": 130000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "BRA",
+      "inputTokens": 115000000000,
+      "outputTokens": 90000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "CAN",
+      "inputTokens": 125000000000,
+      "outputTokens": 100000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "AUS",
+      "inputTokens": 88000000000,
+      "outputTokens": 70000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "KOR",
+      "inputTokens": 78000000000,
+      "outputTokens": 62000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "FRA",
+      "inputTokens": 100000000000,
+      "outputTokens": 80000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "SGP",
+      "inputTokens": 70000000000,
+      "outputTokens": 56000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "USA",
+      "destination": "ARE",
+      "inputTokens": 56000000000,
+      "outputTokens": 44000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IRL",
+      "destination": "GBR",
+      "inputTokens": 120000000000,
+      "outputTokens": 95000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IRL",
+      "destination": "DEU",
+      "inputTokens": 98000000000,
+      "outputTokens": 78000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IRL",
+      "destination": "IND",
+      "inputTokens": 130000000000,
+      "outputTokens": 105000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IRL",
+      "destination": "FRA",
+      "inputTokens": 62000000000,
+      "outputTokens": 49000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IRL",
+      "destination": "BRA",
+      "inputTokens": 52000000000,
+      "outputTokens": 40000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "SGP",
+      "destination": "IND",
+      "inputTokens": 175000000000,
+      "outputTokens": 140000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "SGP",
+      "destination": "AUS",
+      "inputTokens": 75000000000,
+      "outputTokens": 60000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "SGP",
+      "destination": "JPN",
+      "inputTokens": 64000000000,
+      "outputTokens": 51000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "SGP",
+      "destination": "KOR",
+      "inputTokens": 48000000000,
+      "outputTokens": 38000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "SGP",
+      "destination": "ARE",
+      "inputTokens": 44000000000,
+      "outputTokens": 35000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "ARE",
+      "destination": "IND",
+      "inputTokens": 85000000000,
+      "outputTokens": 66000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "ARE",
+      "destination": "GBR",
+      "inputTokens": 38000000000,
+      "outputTokens": 30000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IND",
+      "destination": "ARE",
+      "inputTokens": 34000000000,
+      "outputTokens": 27000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "IND",
+      "destination": "SGP",
+      "inputTokens": 20000000000,
+      "outputTokens": 16000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "DEU",
+      "destination": "GBR",
+      "inputTokens": 40000000000,
+      "outputTokens": 31000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "JPN",
+      "destination": "USA",
+      "inputTokens": 58000000000,
+      "outputTokens": 47000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "GBR",
+      "destination": "IND",
+      "inputTokens": 66000000000,
+      "outputTokens": 52000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "KOR",
+      "destination": "JPN",
+      "inputTokens": 20000000000,
+      "outputTokens": 16000000000
+    },
+    {
+      "period": "2026-06",
+      "origin": "BRA",
+      "destination": "USA",
+      "inputTokens": 18000000000,
+      "outputTokens": 14000000000
+    }
+  ]
+}
