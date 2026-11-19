@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<!--
+  GLOBAL AI OBSERVATORY — Release 1: AI Token Flows (Synthetic Demo)
+  ==================================================================
+  DEVELOPER GUIDE
+
+  1. HOW TO REPLACE THE DEMO DATA
+     Find the `FLOWS` array near the top of the main <script> block.
+     Replace its records with your own. Every statistic, ranking, tooltip
+     and particle in the app is derived from FLOWS at runtime — nothing
+     else needs to be edited.
+
+  2. RECORD SCHEMA (exact)
+     {
+       period:       "YYYY-MM"   // monthly snapshot, e.g. "2026-06"
+       origin:       "USA"       // ISO 3166-1 alpha-3 SERVING country
+       destination:  "IND"       // ISO 3166-1 alpha-3 CONSUMING country
+       inputTokens:  180000000000,  // positive integer, prompt tokens
+       outputTokens: 140000000000   // positive integer, generated tokens
+     }
+     totalTokens is always inputTokens + outputTokens (never stored).
+
+  3. HOW TO ADD A NEW COUNTRY
+     a) Add records to FLOWS using its ISO alpha-3 code.
+     b) Add an entry to COUNTRY_COORDS: { name, lon, lat } using a real
+        geographic reference point (centroid or capital), not a random
+        position.
+     c) Add its ISO alpha-3 -> ISO numeric mapping in ISO_NUMERIC so the
+        country polygon can be matched in the Natural Earth atlas.
+     d) If the country is too small to appear in Natural Earth 1:110m
+        (e.g. Singapore), add a supplemental polygon like SG_SUPPLEMENT
+        below, sourced from a real dataset (1:50m), and comment its source.
+
+  4. COORDINATES
+     COUNTRY_COORDS is independent of all rendering logic. Route endpoints
+     are always geographic coordinates projected through the orthographic
+     projection — never arbitrary screen positions.
+
+  5. SERVING vs CONSUMING GEOGRAPHY
+     origin      = country where inference is SERVED.
+     destination = country associated with CONSUMPTION.
+     This is a modelling convention for a synthetic demo, NOT a measured
+     definition of AI imports/exports. Serving location, customer location,
+     billing location, model-development location and training-infrastructure
+     location are all different concepts in reality.
+
+  6. PARTICLE DIRECTIONS
+     Cyan  (input/prompt tokens):     destination -> origin  (REVERSE of stored pair)
+     Amber (output/generated tokens): origin -> destination  (same as stored pair)
+
+  7. HOW TO OPEN
+     Double-click index.html or open it directly via file:// in any modern
+     browser. No server, bundler, backend, API key or framework is required.
+
+  8. INTERNET REQUIREMENT
+     Internet access is required on first load for the pinned CDN libraries
+     (D3 v7.9.0, topojson-client v3.1.0) and the Natural Earth 1:110m map
+     (world-atlas v2.0.2). If they fail, a clearly-labelled static fallback
+     globe is rendered and the failure is explained on screen.
+
+  9. DATA HONESTY
+     ALL demonstration data in FLOWS is FICTIONAL. It is not measured
+     international token traffic, not provider data, and not national
+     statistics. The disclaimer stays visible in the header at all times.
+
+  DEV/TEST HOOKS (harmless in normal use):
+     ?fail=d3 | ?fail=atlas | ?fail=all  — simulate CDN/map load failures.
+     window.__observatory — read-only-ish test API (state, aggregates,
+     validation results, particle counts, frame counter).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Global AI Observatory — AI Token Flows</title>
+<meta name="description" content="Interactive synthetic demonstration of conceptual AI inference token flows between serving and consuming countries. Not measured traffic.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============ MIDNIGHT OBSERVATORY — design tokens ============ */
+:root{
+  --background:#070B13;
+  --surface:#0D1420;
+  --surface-raised:#121D2A;
+  --border:rgba(160,190,220,0.13);
+  --globe:#101C2B;
+  --country-fill:#16283A;
+  --country-outline:#577084;
+  --text-primary:#F0F5FA;
+  --text-secondary:#93A4B7;
+  --text-muted:#607286;
+  --input-cyan:#59C9F5;
+  --output-amber:#FFB56B;
+  --selection:#C0E8FF;
+  --atmosphere:rgba(63,154,224,0.14);
+  --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+#validation-dot{margin-left:8px;vertical-align:middle}
+#validation-dot.ok{background:#7CE3B1}
+#validation-dot.fail{background:var(--output-amber)}
+html,body{margin:0;padding:0}
+body{
+  background:var(--background);
+  color:var(--text-primary);
+  font-family:var(--font-sans);
+  font-size:14px;
+  line-height:1.45;
+  height:100dvh;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 348px;
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  grid-template-areas:
+    "header header"
+    "summary summary"
+    "stage panel"
+    "timeline timeline";
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--selection);outline-offset:2px;border-radius:4px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#disclaimer-mobile{display:none}
+
+/* ============ Header ============ */
+#hdr{grid-area:header;display:flex;flex-direction:column;gap:6px;padding:12px 20px 10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(18,29,42,0.5),rgba(13,20,32,0.2))}
+.hdr-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand svg{flex:none;display:block}
+.eyebrow{font-size:10px;letter-spacing:0.22em;color:var(--text-muted);font-weight:500;text-transform:uppercase}
+.brand h1{margin:0;font-size:17px;font-weight:600;letter-spacing:0.01em;line-height:1.2}
+.hdr-controls{display:flex;align-items:center;gap:8px;flex:none}
+#period-chip{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);border:1px solid var(--border);border-radius:5px;padding:4px 9px;background:var(--surface);white-space:nowrap}
+.icon-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);transition:background .15s,color .15s,border-color .15s;padding:0}
+.icon-btn:hover{background:var(--surface-raised);color:var(--text-primary)}
+.icon-btn[aria-pressed="true"]{background:rgba(89,201,245,0.12);border-color:rgba(89,201,245,0.45);color:var(--input-cyan)}
+.hdr-sub{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+#meta-line{font-family:var(--font-mono);font-size:10px;letter-spacing:0.14em;color:var(--text-muted);white-space:nowrap}
+#disclaimer{margin:0;font-size:11.5px;color:var(--text-secondary);display:flex;align-items:center;gap:7px}
+#disclaimer::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--output-amber);flex:none;opacity:0.9}
+
+/* ============ Summary strip ============ */
+#summary{grid-area:summary;display:flex;align-items:stretch;gap:0;padding:0 20px;border-bottom:1px solid var(--border);background:rgba(13,20,32,0.35);overflow-x:auto;scrollbar-width:none}
+#summary::-webkit-scrollbar{display:none}
+.stat{padding:9px 22px 9px 0;margin-right:22px;border-right:1px solid var(--border);min-width:max-content}
+.stat:last-child{border-right:0;margin-right:0}
+.stat-label{font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin-bottom:2px}
+.stat-value{font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--text-primary);line-height:1.15}
+.stat-value.cyan{color:var(--input-cyan)}
+.stat-value.amber{color:var(--output-amber)}
+.stat-sub{font-size:10px;color:var(--text-muted);font-family:var(--font-mono)}
+
+/* ============ Globe stage ============ */
+#stage{grid-area:stage;position:relative;min-width:0;min-height:0;background:radial-gradient(circle at 50% 46%,#0B1421 0%,var(--background) 72%);overflow:hidden}
+#globe{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#globe.dragging{cursor:grabbing}
+#globe.pointing{cursor:pointer}
+#stage-notice{position:absolute;top:14px;left:50%;transform:translateX(-50%);max-width:min(560px,90%);background:rgba(18,29,42,0.94);border:1px solid rgba(255,181,107,0.35);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text-secondary);z-index:6;display:none}
+#stage-notice strong{color:var(--output-amber);font-weight:600}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;pointer-events:none}
+#loading span{font-family:var(--font-mono);font-size:11px;letter-spacing:0.12em;color:var(--text-muted);border:1px solid var(--border);background:rgba(13,20,32,0.85);padding:8px 14px;border-radius:6px}
+#globe-hint{position:absolute;right:16px;bottom:14px;font-size:11px;color:var(--text-muted);z-index:4;pointer-events:none;transition:opacity .6s;font-family:var(--font-mono);letter-spacing:0.04em}
+
+/* Legend + stream toggles (annotation, not a card) */
+#legend{position:absolute;left:16px;bottom:14px;z-index:4;display:flex;flex-direction:column;gap:8px;max-width:270px}
+.legend-keys{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-secondary)}
+.legend-key{display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.cyan{background:var(--input-cyan)}
+.dot.amber{background:var(--output-amber)}
+.dot.sel{background:transparent;border:1.5px solid var(--selection);width:7px;height:7px}
+.legend-note{font-size:10px;color:var(--text-muted);font-family:var(--font-mono)}
+.legend-toggles{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:10.5px;font-family:var(--font-mono);letter-spacing:0.03em;padding:4px 9px;border-radius:5px;border:1px solid var(--border);background:rgba(13,20,32,0.8);color:var(--text-muted);cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+.chip:hover{color:var(--text-secondary)}
+.chip[aria-pressed="true"]{color:var(--text-primary);border-color:rgba(160,190,220,0.4);background:var(--surface-raised)}
+.chip.cyan[aria-pressed="true"]{color:var(--input-cyan);border-color:rgba(89,201,245,0.45)}
+.chip.amber[aria-pressed="true"]{color:var(--output-amber);border-color:rgba(255,181,107,0.45)}
+
+/* ============ Right intelligence panel ============ */
+#panel{grid-area:panel;border-left:1px solid var(--border);background:rgba(13,20,32,0.55);overflow-y:auto;padding:16px 18px 20px;display:flex;flex-direction:column;gap:16px;scrollbar-width:thin;scrollbar-color:var(--surface-raised) transparent}
+#panel-head{display:flex;align-items:flex-start;gap:8px}
+#panel-title{margin:0;font-size:15px;font-weight:600;flex:1;min-width:0;line-height:1.3}
+#panel-code{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:2px 6px;flex:none;margin-top:2px}
+.panel-actions{display:flex;gap:6px;flex:none}
+.mini-btn{font-size:11px;padding:5px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.mini-btn:hover{background:var(--surface-raised);color:var(--text-primary)}
+.mini-btn.accent{border-color:rgba(192,232,255,0.35);color:var(--selection)}
+.section-label{font-size:9.5px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin:0 0 8px}
+.hairline{border:0;border-top:1px solid var(--border);margin:0}
+
+/* Story banner */
+#story{border:1px solid rgba(89,201,245,0.25);background:rgba(89,201,245,0.06);border-radius:8px;padding:11px 12px;display:none;position:relative}
+#story.active{display:block}
+#story-title{font-size:12px;font-weight:600;color:var(--selection);margin:0 0 4px;padding-right:22px}
+#story-text{font-size:12px;color:var(--text-secondary);margin:0;line-height:1.5}
+#story-close{position:absolute;top:7px;right:7px;width:22px;height:22px;border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;border-radius:4px}
+#story-close:hover{color:var(--text-primary)}
+
+/* Route inspector */
+#inspector{display:none;border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)}
+#inspector.active{display:block}
+.insp-route{font-size:13px;font-weight:600;margin:0 0 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.insp-route .arrow{color:var(--text-muted);font-weight:400}
+.insp-sub{font-size:11px;color:var(--text-muted);margin:0 0 9px}
+.insp-grid{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:12px;margin-bottom:9px}
+.insp-grid .k{color:var(--text-secondary);display:flex;align-items:center;gap:7px}
+.insp-grid .v{font-family:var(--font-mono);text-align:right}
+.insp-grid .v.cyan{color:var(--input-cyan)}
+.insp-grid .v.amber{color:var(--output-amber)}
+.insp-exact{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin:0 0 9px;line-height:1.6}
+.insp-dir{font-size:10.5px;color:var(--text-muted);line-height:1.55;margin:0 0 10px}
+.insp-dir .cyan{color:var(--input-cyan)}
+.insp-dir .amber{color:var(--output-amber)}
+.insp-actions{display:flex;gap:6px}
+
+/* Country intelligence */
+#intel{display:none;flex-direction:column;gap:14px}
+#intel.active{display:flex}
+.intel-block{border:1px solid var(--border);border-radius:8px;padding:11px 12px;background:var(--surface)}
+.intel-block h3{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase}
+.intel-block.serving h3{color:var(--output-amber)}
+.intel-block.consuming h3{color:var(--input-cyan)}
+.intel-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.intel-metric .m-label{font-size:10px;color:var(--text-muted);line-height:1.35;margin-bottom:2px}
+.intel-metric .m-value{font-family:var(--font-mono);font-size:15px;font-weight:500}
+.intel-note{font-size:10px;color:var(--text-muted);margin:8px 0 0;line-height:1.5}
+
+/* Segmented toggles */
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg button{font-size:11px;padding:5px 11px;border:0;background:transparent;color:var(--text-muted);cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.seg button + button{border-left:1px solid var(--border)}
+.seg button[aria-pressed="true"]{background:var(--surface-raised);color:var(--text-primary)}
+.seg button:hover{color:var(--text-secondary)}
+.seg button[aria-pressed="true"]:hover{color:var(--text-primary)}
+
+/* Rankings */
+#rank-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+#rank-note{font-size:10px;color:var(--text-muted);margin:0 0 9px;line-height:1.5}
+#rank-list,#partner-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.rank-row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:9px;align-items:center;width:100%;padding:6px 7px;border:0;border-radius:6px;background:transparent;cursor:pointer;text-align:left;transition:background .15s}
+.rank-row:hover{background:var(--surface-raised)}
+.rank-row.selected{background:rgba(192,232,255,0.09);box-shadow:inset 0 0 0 1px rgba(192,232,255,0.25)}
+.rank-num{font-family:var(--font-mono);font-size:10px;color:var(--text-muted)}
+.rank-mid{min-width:0}
+.rank-name{font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;margin-bottom:3px}
+.rank-bar{height:3px;border-radius:2px;background:rgba(160,190,220,0.12);overflow:hidden}
+.rank-bar i{display:block;height:100%;background:rgba(192,232,255,0.6);border-radius:2px;transition:width .4s ease}
+.rank-right{text-align:right}
+.rank-val{font-family:var(--font-mono);font-size:11.5px;color:var(--text-secondary);display:block}
+.rank-share{font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)}
+
+/* Balance view (story 4) */
+#balance{display:none;border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)}
+#balance.active{display:block}
+.balance-bar{height:8px;border-radius:4px;overflow:hidden;display:flex;margin:9px 0 7px}
+.balance-bar .in{background:var(--input-cyan)}
+.balance-bar .out{background:var(--output-amber)}
+.balance-legend{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary)}
+#balance-text{font-size:11.5px;color:var(--text-secondary);margin:9px 0 0;line-height:1.55}
+
+/* Guided explorations */
+#stories{display:flex;flex-direction:column;gap:6px}
+.story-chip{font-size:11.5px;text-align:left;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;transition:background .15s,color .15s,border-color .15s;display:flex;gap:8px;align-items:center}
+.story-chip:hover{background:var(--surface-raised);color:var(--text-primary);border-color:rgba(160,190,220,0.3)}
+.story-chip .n{font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted);flex:none}
+
+.panel-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.panel-foot label{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-muted);font-weight:500}
+#country-jump{font-family:inherit;font-size:12px;color:var(--text-primary);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;cursor:pointer;width:100%}
+#country-jump option{background:var(--surface);color:var(--text-primary)}
+
+/* ============ Timeline ============ */
+#timeline{grid-area:timeline;display:flex;align-items:center;gap:14px;padding:11px 20px;border-top:1px solid var(--border);background:rgba(13,20,32,0.6)}
+.transport{display:flex;gap:6px;flex:none}
+.transport .icon-btn{width:36px;height:36px}
+#btn-play{border-color:rgba(192,232,255,0.35);color:var(--selection)}
+#btn-play[aria-pressed="true"]{background:rgba(192,232,255,0.12)}
+.tl-slider{flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px}
+#slider{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;cursor:pointer;margin:0}
+#slider::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:rgba(160,190,220,0.2)}
+#slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--selection);margin-top:-5.5px;border:2px solid var(--background);box-shadow:0 0 0 1px rgba(192,232,255,0.5);transition:transform .15s}
+#slider::-webkit-slider-thumb:hover{transform:scale(1.15)}
+#slider::-moz-range-track{height:3px;border-radius:2px;background:rgba(160,190,220,0.2)}
+#slider::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--selection);border:2px solid var(--background);box-shadow:0 0 0 1px rgba(192,232,255,0.5)}
+#ticks{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:0.05em;padding:0 2px}
+#ticks span{cursor:pointer;transition:color .15s}
+#ticks span:hover{color:var(--text-secondary)}
+#ticks span.current{color:var(--selection)}
+#period-display{font-family:var(--font-mono);font-size:13px;color:var(--text-primary);flex:none;min-width:104px;text-align:center}
+#period-display small{display:block;font-size:9px;color:var(--text-muted);letter-spacing:0.14em}
+#speed{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 7px;cursor:pointer;flex:none}
+#speed option{background:var(--surface)}
+#btn-loop{flex:none;width:auto;padding:0 10px;font-family:var(--font-mono);font-size:10.5px;gap:5px}
+
+/* ============ Tooltip ============ */
+#tooltip{position:fixed;z-index:50;max-width:290px;background:rgba(13,20,32,0.96);border:1px solid rgba(160,190,220,0.25);border-radius:8px;padding:11px 13px;pointer-events:none;display:none;box-shadow:0 8px 28px rgba(0,0,0,0.5);backdrop-filter:blur(4px)}
+#tooltip.active{display:block}
+.tt-title{font-size:12.5px;font-weight:600;margin:0 0 1px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tt-title .arrow{color:var(--text-muted);font-weight:400}
+.tt-sub{font-size:10px;color:var(--text-muted);margin:0 0 8px;font-family:var(--font-mono);letter-spacing:0.04em}
+.tt-grid{display:grid;grid-template-columns:1fr auto;gap:3px 14px;font-size:11.5px;margin-bottom:7px}
+.tt-grid .k{color:var(--text-secondary);display:flex;align-items:center;gap:6px}
+.tt-grid .v{font-family:var(--font-mono);text-align:right}
+.tt-grid .v.cyan{color:var(--input-cyan)}
+.tt-grid .v.amber{color:var(--output-amber)}
+.tt-dir{font-size:10px;color:var(--text-muted);line-height:1.5;margin:0 0 6px}
+.tt-dir .cyan{color:var(--input-cyan)}
+.tt-dir .amber{color:var(--output-amber)}
+.tt-foot{font-size:9.5px;color:var(--text-muted);font-family:var(--font-mono);margin:0;letter-spacing:0.03em}
+
+/* ============ Methodology dialog ============ */
+#methodology{border:1px solid rgba(160,190,220,0.25);border-radius:12px;background:var(--surface-raised);color:var(--text-primary);padding:0;max-width:min(600px,92vw);width:600px;max-height:84dvh;overflow:hidden}
+#methodology::backdrop{background:rgba(4,8,14,0.72)}
+.method-inner{padding:22px 26px 24px;overflow-y:auto;max-height:84dvh}
+.method-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.method-head h2{margin:0;font-size:16px;font-weight:600}
+#methodology h3{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--selection);margin:18px 0 6px;font-weight:600}
+#methodology p,#methodology li{font-size:12.5px;color:var(--text-secondary);line-height:1.6;margin:0 0 8px}
+#methodology ul{margin:0 0 8px;padding-left:18px}
+#methodology code{font-family:var(--font-mono);font-size:11px;background:rgba(7,11,19,0.7);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text-primary)}
+.method-disclaimer{border:1px solid rgba(255,181,107,0.35);background:rgba(255,181,107,0.07);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-secondary);margin-top:16px}
+.method-disclaimer strong{color:var(--output-amber)}
+.future-modes{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.future-mode{font-size:11px;font-family:var(--font-mono);border:1px dashed rgba(160,190,220,0.3);border-radius:6px;padding:6px 10px;color:var(--text-muted)}
+.future-mode b{display:block;color:var(--text-secondary);font-weight:500;margin-bottom:2px}
+
+/* ============ Responsive ============ */
+@media (max-width:1100px){
+  body{grid-template-columns:minmax(0,1fr) 304px}
+  .stat{padding-right:16px;margin-right:16px}
+}
+@media (max-width:920px){
+  body{height:auto;min-height:100dvh;overflow-y:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(340px,56dvh) auto auto;grid-template-areas:"header" "summary" "stage" "timeline" "panel"}
+  #panel{border-left:0;border-top:1px solid var(--border);overflow:visible}
+  #hdr{padding:10px 14px 9px}
+  #summary{padding:0 14px}
+  #timeline{padding:10px 14px;gap:10px;flex-wrap:wrap}
+  .tl-slider{order:5;flex-basis:100%}
+  #period-display{min-width:0}
+  #legend{max-width:220px;left:12px;bottom:12px}
+  .legend-note{display:none}
+  #globe-hint{display:none}
+  .brand h1{font-size:15px}
+  #meta-line{display:none}
+}
+@media (max-width:560px){
+  .stat-value{font-size:16px}
+  .stat{padding:8px 12px 8px 0;margin-right:12px}
+  #disclaimer{font-size:10.5px}
+  .hdr-controls{gap:6px}
+  #period-chip{display:none}
+  #btn-loop{display:none}
+  .intel-metrics{grid-template-columns:1fr 1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<header id="hdr">
+  <div class="hdr-row">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+        <circle cx="13" cy="13" r="11" stroke="#C0E8FF" stroke-width="1.1" opacity="0.85"/>
+        <ellipse cx="13" cy="13" rx="5" ry="11" stroke="#59C9F5" stroke-width="0.9" opacity="0.6"/>
+        <path d="M2.4 9.5h21.2M2.4 16.5h21.2" stroke="#577084" stroke-width="0.8" opacity="0.7"/>
+        <circle cx="17.5" cy="8.5" r="1.6" fill="#FFB56B"/>
+      </svg>
+      <div class="brand-text">
+        <div class="eyebrow">Global AI Observatory</div>
+        <h1>AI Token Flows</h1>
+      </div>
+    </div>
+    <div class="hdr-controls">
+      <span id="period-chip" title="Selected demonstration period">—</span>
+      <button id="btn-info" class="icon-btn" aria-label="Data methodology and information" title="Methodology &amp; data honesty">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.4" stroke="currentColor" stroke-width="1.2"/><path d="M7.5 6.6v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="4.4" r="0.8" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-rotate" class="icon-btn" aria-pressed="true" aria-label="Toggle auto-rotation" title="Auto-rotation (R)">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M13 7.5a5.5 5.5 0 1 1-1.6-3.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M13 1.6v2.6h-2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="hdr-sub">
+    <span id="meta-line">EXPERIMENTAL / SYNTHETIC DATA / GLOBAL</span>
+    <p id="disclaimer">Synthetic demo data, not measured international token traffic</p>
+  </div>
+</header>
+
+<section id="summary" aria-label="Period summary statistics">
+  <div class="stat"><div class="stat-label">Total associated</div><div class="stat-value" id="stat-total">—</div><div class="stat-sub" id="stat-total-sub"></div></div>
+  <div class="stat"><div class="stat-label">Input · prompt</div><div class="stat-value cyan" id="stat-input">—</div><div class="stat-sub">consumer → server</div></div>
+  <div class="stat"><div class="stat-label">Output · generated</div><div class="stat-value amber" id="stat-output">—</div><div class="stat-sub">server → consumer</div></div>
+  <div class="stat"><div class="stat-label">Active routes</div><div class="stat-value" id="stat-routes">—</div><div class="stat-sub">bilateral pairs</div></div>
+  <div class="stat"><div class="stat-label">Countries</div><div class="stat-value" id="stat-countries">—</div><div class="stat-sub">serving + consuming</div></div>
+</section>
+
+<div id="stage">
+  <canvas id="globe" tabindex="0" aria-label="Interactive globe of synthetic AI token flows. Drag to rotate, arrow keys rotate when focused, click a country to explore. All figures are also available in the intelligence panel."></canvas>
+  <div id="loading"><span>LOADING GEOGRAPHIC DATA…</span></div>
+  <div id="stage-notice" role="alert"></div>
+  <div id="legend" aria-label="Legend and stream controls">
+    <div class="legend-keys">
+      <div class="legend-key"><span class="dot cyan"></span><span>Input / prompt tokens → serving location</span></div>
+      <div class="legend-key"><span class="dot amber"></span><span>Output / generated tokens → consumer</span></div>
+      <div class="legend-key"><span class="dot sel"></span><span>Selected country boundary</span></div>
+      <div class="legend-note">size &amp; density ∝ √relative volume</div>
+    </div>
+    <div class="legend-toggles" role="group" aria-label="Stream visibility">
+      <button class="chip cyan" id="tg-input" aria-pressed="true">INPUT</button>
+      <button class="chip amber" id="tg-output" aria-pressed="true">OUTPUT</button>
+      <button class="chip" id="tg-routes" aria-pressed="true">ROUTES</button>
+      <button class="chip" id="tg-power" aria-pressed="false" title="Low-power rendering: fewer particles, no tails, 1× pixel ratio">LOW POWER</button>
+    </div>
+  </div>
+  <div id="globe-hint">drag to rotate · click a country</div>
+</div>
+
+<aside id="panel" aria-label="Country and destination intelligence">
+  <div id="panel-head">
+    <h2 id="panel-title">Network overview</h2>
+    <span id="panel-code" hidden></span>
+    <div class="panel-actions">
+      <button id="btn-spotlight" class="mini-btn accent" hidden>Focus globe</button>
+      <button id="btn-clear" class="mini-btn" hidden>Clear ✕</button>
+    </div>
+  </div>
+
+  <div id="story" aria-live="polite">
+    <p id="story-title"></p>
+    <p id="story-text"></p>
+    <button id="story-close" aria-label="Dismiss exploration">✕</button>
+  </div>
+
+  <section id="inspector" aria-label="Route inspector"></section>
+
+  <section id="intel" aria-label="Selected country intelligence"></section>
+
+  <section id="balance" aria-label="Prompt and completion balance"></section>
+
+  <section id="rankings" aria-label="Rankings">
+    <div id="rank-head">
+      <p class="section-label" style="margin:0">Rankings</p>
+      <div class="seg" role="group" aria-label="Ranking mode">
+        <button id="rank-consuming" aria-pressed="true">Consuming</button>
+        <button id="rank-serving" aria-pressed="false">Serving</button>
+      </div>
+    </div>
+    <p id="rank-note"></p>
+    <ol id="rank-list"></ol>
+  </section>
+
+  <section id="stories" aria-label="Guided explorations">
+    <p class="section-label">Guided explorations · synthetic data</p>
+    <button class="story-chip" data-story="india"><span class="n">01</span>Follow an AI request from India</button>
+    <button class="story-chip" data-story="hubs"><span class="n">02</span>Explore the major serving hubs</button>
+    <button class="story-chip" data-story="consumers"><span class="n">03</span>Compare leading consumption destinations</button>
+    <button class="story-chip" data-story="balance"><span class="n">04</span>Prompt vs completion token balance</button>
+  </section>
+
+  <div class="panel-foot">
+    <label for="country-jump">Jump to country</label>
+    <select id="country-jump"><option value="">Select a country…</option></select>
+  </div>
+</aside>
+
+<footer id="timeline" aria-label="Time explorer">
+  <div class="transport">
+    <button id="btn-prev" class="icon-btn" aria-label="Previous period" title="Previous period (←)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M9 2.5 4.5 7 9 11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="btn-play" class="icon-btn" aria-pressed="false" aria-label="Play period playback" title="Play / pause (Space)">
+      <svg id="play-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M4 2.2v9.6L11.6 7 4 2.2z"/></svg>
+    </button>
+    <button id="btn-next" class="icon-btn" aria-label="Next period" title="Next period (→)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M5 2.5 9.5 7 5 11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div class="tl-slider">
+    <input id="slider" type="range" min="0" max="5" step="1" value="0" aria-label="Demonstration period timeline">
+    <div id="ticks" aria-hidden="true"></div>
+  </div>
+  <div id="period-display">—<small>PERIOD</small></div>
+  <select id="speed" aria-label="Playback speed">
+    <option value="0.5">0.5×</option>
+    <option value="1" selected>1×</option>
+    <option value="2">2×</option>
+    <option value="4">4×</option>
+  </select>
+  <button id="btn-loop" class="icon-btn" aria-pressed="true" aria-label="Toggle loop playback" title="Loop playback">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M2 6.5a4.5 4.5 0 0 1 7.7-3.2M11 6.5a4.5 4.5 0 0 1-7.7 3.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M9.9 1.2v2.2H7.7M3.1 11.8V9.6h2.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    LOOP
+  </button>
+</footer>
+
+<div id="tooltip" role="tooltip"></div>
+<div id="sr-status" class="sr-only" role="status" aria-live="polite"></div>
+
+<dialog id="methodology" aria-labelledby="method-title">
+  <div class="method-inner">
+    <div class="method-head">
+      <h2 id="method-title">Methodology &amp; data honesty</h2>
+      <button id="method-close" class="icon-btn" aria-label="Close methodology">✕</button>
+    </div>
+    <div class="method-disclaimer"><strong>Synthetic demo data, not measured international token traffic.</strong> Every figure in this experience is fictional demonstration data embedded in the page.</div>
+    <h3>Geographic convention</h3>
+    <p><code>origin</code> = the country where the inference service is being <b>served</b>. <code>destination</code> = the country associated with <b>consumption</b> of that service. This is a provisional modelling assumption for the demo — not a proven definition of AI imports or exports.</p>
+    <h3>Important distinction</h3>
+    <p>A route is a conceptual bilateral relationship, not a measurement of physical token exports or imports. AI tokens are not physical goods travelling across oceans. In reality, inference-serving location, customer location, billing location, model-development location and training-infrastructure location are all different concepts; this demo collapses them into one serving/consuming pair for illustration.</p>
+    <h3>Token directions</h3>
+    <ul>
+      <li><b style="color:var(--input-cyan)">Input / prompt tokens (cyan)</b> travel from the consuming country to the serving country — the reverse of the stored origin→destination pair.</li>
+      <li><b style="color:var(--output-amber)">Output / generated tokens (amber)</b> travel from the serving country to the consuming country.</li>
+    </ul>
+    <h3>Particle scale</h3>
+    <p>Particle size and density encode <i>relative</i> volume under a square-root scale. For each visible stream, weight = √volume. A global budget of at most 150 particles (75 in low-power mode) is distributed deterministically: every visible nonzero stream gets at least one particle where the budget allows, and the remainder is allocated proportionally to √weights using the largest-remainder method. Radius = clamp(1 + 2.2·√(volume / maxVolume), 1, 3.2) px. Particles do <b>not</b> represent individual tokens; exact numeric volumes are always shown in the summary, rankings, inspector and tooltips.</p>
+    <h3>Data source</h3>
+    <p>Embedded fictional demonstration dataset (<code>FLOWS</code>): six monthly snapshots, 2026-01 through 2026-06. Country boundaries: Natural Earth 1:110m via world-atlas 2.0.2 (Singapore is supplemented with a simplified Natural Earth 1:50m outline because 1:110m omits city-states). Rendering: D3 v7.9.0 orthographic projection on 2D canvas. No live feeds, no provider data, no analytics.</p>
+    <h3>Geographic clipping</h3>
+    <p>Routes and particles are computed along great circles and tested against the visible hemisphere every frame. Anything crossing behind the Earth is hidden immediately and restored when it returns — a circular canvas clip alone is not used.</p>
+    <h3>Future releases (not in this demo)</h3>
+    <div class="future-modes">
+      <span class="future-mode"><b>Infrastructure Atlas</b>Verified data-centre &amp; cloud-region locations — future release</span>
+      <span class="future-mode"><b>AI Adoption Observatory</b>Aggregated usage research &amp; demand indicators — future release</span>
+    </div>
+    <p style="margin-top:14px;font-size:11px;color:var(--text-muted)">Internet access is required to load the geographic map and rendering libraries from pinned CDNs. If loading fails, a labelled static fallback is shown.</p>
+  </div>
+</dialog>
+
+<noscript><p style="padding:20px;color:#F0F5FA">This experience requires JavaScript. The demonstration data is synthetic and fictional.</p></noscript>
+
+<script>
+"use strict";
+/* =====================================================================
+   GLOBAL AI OBSERVATORY — application source
+   Sections:
+     1. Configuration & design tokens
+     2. FLOWS demonstration dataset (replaceable)
+     3. COUNTRY_COORDS geographic lookup (replaceable)
+     4. Dataset validation
+     5. Aggregation layer (single source of numeric truth)
+     6. Particle allocation (deterministic, sqrt scale, budgeted)
+     7. Geographic math, visibility & route construction
+     8. Rendering (layered canvas + static fallback)
+     9. Particle system
+    10. Interaction (drag, hover, click, keyboard)
+    11. UI updates (summary, panel, rankings, inspector, tooltip)
+    12. Timeline & playback
+    13. Boot, asset loading, failure handling, lifecycle
+    14. Development validation & test API
+   ===================================================================== */
+
+/* ---------- 1. CONFIGURATION ---------- */
+const CFG = {
+  colors: {
+    background:"#070B13", globe:"#101C2B", countryFill:"#16283A",
+    countryOutline:"#577084", textSecondary:"#93A4B7", textMuted:"#607286",
+    input:"#59C9F5", output:"#FFB56B", selection:"#C0E8FF",
+    atmosphere:"rgba(63,154,224,0.14)", route:"122,160,196",
+    graticule:"rgba(147,164,183,0.07)"
+  },
+  particleBudget: 150,        // hard cap, normal mode
+  particleBudgetLow: 75,      // hard cap, low-power mode
+  radiusBase: 1, radiusGain: 2.2, radiusMin: 1, radiusMax: 3.2,
+  dprCap: 2, dprCapLow: 1,
+  autoRotateDegPerSec: 0.9,
+  playbackBaseMs: 2400,       // ms per period at 1x
+  crossfadeMs: 600,           // route intensity transition between periods
+  spotlightMs: 900,
+  idleResumeMs: 2500,         // auto-rotation resume delay after interaction
+  assetTimeoutMs: 12000,
+  urls: {
+    d3: "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+    topojson: "https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js",
+    atlas: "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json"
+  }
+};
+
+/* ---------- 2. FLOWS — EMBEDDED SYNTHETIC DEMONSTRATION DATASET ----------
+   FICTIONAL DATA. Not measured traffic, not provider data, not national
+   statistics. Replace this array to change the entire experience; every
+   number shown anywhere in the app is derived from these records.
+
+   Schema (exact):
+     { period:"YYYY-MM", origin:"ISO3", destination:"ISO3",
+       inputTokens:<int >= 0>, outputTokens:<int >= 0> }
+
+   Convention:
+     origin      = SERVING country (where inference is served)
+     destination = CONSUMING country (where consumption is associated)
+     inputTokens  = prompt tokens, conceptually travelling destination→origin
+     outputTokens = generated tokens, conceptually travelling origin→destination
+     totalTokens  = inputTokens + outputTokens (computed, never stored)
+
+   Demo shape: 6 monthly periods (2026-01…2026-06), 13 countries,
+   30 bilateral relationships. Serving hubs: USA, IRL, SGP, plus emerging
+   ARE and IND. India appears in 7 relationships. Volumes grow over time;
+   some routes emerge mid-series (SGP→ARE from Feb, ARE→IND from Mar,
+   ARE→GBR & IND→ARE from Apr, IND→SGP from May, BRA→USA from Mar).
+------------------------------------------------------------------------ */
+const FLOWS = [
+  // ---- 2026-01 ----
+  {period:"2026-01",origin:"USA",destination:"IND",inputTokens:180000000000,outputTokens:140000000000},
+  {period:"2026-01",origin:"USA",destination:"GBR",inputTokens:140000000000,outputTokens:105000000000},
+  {period:"2026-01",origin:"USA",destination:"DEU",inputTokens:110000000000,outputTokens:85000000000},
+  {period:"2026-01",origin:"USA",destination:"JPN",inputTokens:120000000000,outputTokens:95000000000},
+  {period:"2026-01",origin:"USA",destination:"BRA",inputTokens:70000000000,outputTokens:52000000000},
+  {period:"2026-01",origin:"USA",destination:"CAN",inputTokens:95000000000,outputTokens:72000000000},
+  {period:"2026-01",origin:"USA",destination:"AUS",inputTokens:60000000000,outputTokens:46000000000},
+  {period:"2026-01",origin:"USA",destination:"KOR",inputTokens:55000000000,outputTokens:42000000000},
+  {period:"2026-01",origin:"USA",destination:"FRA",inputTokens:75000000000,outputTokens:58000000000},
+  {period:"2026-01",origin:"USA",destination:"SGP",inputTokens:48000000000,outputTokens:38000000000},
+  {period:"2026-01",origin:"USA",destination:"ARE",inputTokens:32000000000,outputTokens:24000000000},
+  {period:"2026-01",origin:"IRL",destination:"GBR",inputTokens:90000000000,outputTokens:68000000000},
+  {period:"2026-01",origin:"IRL",destination:"DEU",inputTokens:72000000000,outputTokens:55000000000},
+  {period:"2026-01",origin:"IRL",destination:"IND",inputTokens:60000000000,outputTokens:45000000000},
+  {period:"2026-01",origin:"IRL",destination:"FRA",inputTokens:45000000000,outputTokens:34000000000},
+  {period:"2026-01",origin:"IRL",destination:"BRA",inputTokens:30000000000,outputTokens:22000000000},
+  {period:"2026-01",origin:"SGP",destination:"IND",inputTokens:105000000000,outputTokens:80000000000},
+  {period:"2026-01",origin:"SGP",destination:"AUS",inputTokens:52000000000,outputTokens:40000000000},
+  {period:"2026-01",origin:"SGP",destination:"JPN",inputTokens:46000000000,outputTokens:36000000000},
+  {period:"2026-01",origin:"SGP",destination:"KOR",inputTokens:34000000000,outputTokens:26000000000},
+  {period:"2026-01",origin:"DEU",destination:"GBR",inputTokens:28000000000,outputTokens:21000000000},
+  {period:"2026-01",origin:"JPN",destination:"USA",inputTokens:40000000000,outputTokens:32000000000},
+  {period:"2026-01",origin:"GBR",destination:"IND",inputTokens:36000000000,outputTokens:27000000000},
+  {period:"2026-01",origin:"KOR",destination:"JPN",inputTokens:14000000000,outputTokens:11000000000},
+  // ---- 2026-02 ----
+  {period:"2026-02",origin:"USA",destination:"IND",inputTokens:205000000000,outputTokens:162000000000},
+  {period:"2026-02",origin:"USA",destination:"GBR",inputTokens:148000000000,outputTokens:112000000000},
+  {period:"2026-02",origin:"USA",destination:"DEU",inputTokens:117000000000,outputTokens:91000000000},
+  {period:"2026-02",origin:"USA",destination:"JPN",inputTokens:127000000000,outputTokens:101000000000},
+  {period:"2026-02",origin:"USA",destination:"BRA",inputTokens:78000000000,outputTokens:58000000000},
+  {period:"2026-02",origin:"USA",destination:"CAN",inputTokens:100000000000,outputTokens:76000000000},
+  {period:"2026-02",origin:"USA",destination:"AUS",inputTokens:65000000000,outputTokens:50000000000},
+  {period:"2026-02",origin:"USA",destination:"KOR",inputTokens:59000000000,outputTokens:45000000000},
+  {period:"2026-02",origin:"USA",destination:"FRA",inputTokens:79000000000,outputTokens:62000000000},
+  {period:"2026-02",origin:"USA",destination:"SGP",inputTokens:52000000000,outputTokens:41000000000},
+  {period:"2026-02",origin:"USA",destination:"ARE",inputTokens:36000000000,outputTokens:27000000000},
+  {period:"2026-02",origin:"IRL",destination:"GBR",inputTokens:95000000000,outputTokens:72000000000},
+  {period:"2026-02",origin:"IRL",destination:"DEU",inputTokens:76000000000,outputTokens:59000000000},
+  {period:"2026-02",origin:"IRL",destination:"IND",inputTokens:72000000000,outputTokens:54000000000},
+  {period:"2026-02",origin:"IRL",destination:"FRA",inputTokens:48000000000,outputTokens:37000000000},
+  {period:"2026-02",origin:"IRL",destination:"BRA",inputTokens:34000000000,outputTokens:25000000000},
+  {period:"2026-02",origin:"SGP",destination:"IND",inputTokens:117000000000,outputTokens:90000000000},
+  {period:"2026-02",origin:"SGP",destination:"AUS",inputTokens:56000000000,outputTokens:43000000000},
+  {period:"2026-02",origin:"SGP",destination:"JPN",inputTokens:49000000000,outputTokens:39000000000},
+  {period:"2026-02",origin:"SGP",destination:"KOR",inputTokens:36000000000,outputTokens:28000000000},
+  {period:"2026-02",origin:"SGP",destination:"ARE",inputTokens:18000000000,outputTokens:14000000000},
+  {period:"2026-02",origin:"DEU",destination:"GBR",inputTokens:30000000000,outputTokens:23000000000},
+  {period:"2026-02",origin:"JPN",destination:"USA",inputTokens:43000000000,outputTokens:34000000000},
+  {period:"2026-02",origin:"GBR",destination:"IND",inputTokens:41000000000,outputTokens:31000000000},
+  {period:"2026-02",origin:"KOR",destination:"JPN",inputTokens:15000000000,outputTokens:12000000000},
+  // ---- 2026-03 ----
+  {period:"2026-03",origin:"USA",destination:"IND",inputTokens:232000000000,outputTokens:186000000000},
+  {period:"2026-03",origin:"USA",destination:"GBR",inputTokens:156000000000,outputTokens:120000000000},
+  {period:"2026-03",origin:"USA",destination:"DEU",inputTokens:124000000000,outputTokens:97000000000},
+  {period:"2026-03",origin:"USA",destination:"JPN",inputTokens:134000000000,outputTokens:107000000000},
+  {period:"2026-03",origin:"USA",destination:"BRA",inputTokens:86000000000,outputTokens:65000000000},
+  {period:"2026-03",origin:"USA",destination:"CAN",inputTokens:106000000000,outputTokens:81000000000},
+  {period:"2026-03",origin:"USA",destination:"AUS",inputTokens:70000000000,outputTokens:54000000000},
+  {period:"2026-03",origin:"USA",destination:"KOR",inputTokens:63000000000,outputTokens:49000000000},
+  {period:"2026-03",origin:"USA",destination:"FRA",inputTokens:84000000000,outputTokens:66000000000},
+  {period:"2026-03",origin:"USA",destination:"SGP",inputTokens:56000000000,outputTokens:45000000000},
+  {period:"2026-03",origin:"USA",destination:"ARE",inputTokens:40000000000,outputTokens:31000000000},
+  {period:"2026-03",origin:"IRL",destination:"GBR",inputTokens:100000000000,outputTokens:77000000000},
+  {period:"2026-03",origin:"IRL",destination:"DEU",inputTokens:81000000000,outputTokens:63000000000},
+  {period:"2026-03",origin:"IRL",destination:"IND",inputTokens:85000000000,outputTokens:65000000000},
+  {period:"2026-03",origin:"IRL",destination:"FRA",inputTokens:51000000000,outputTokens:39000000000},
+  {period:"2026-03",origin:"IRL",destination:"BRA",inputTokens:38000000000,outputTokens:28000000000},
+  {period:"2026-03",origin:"SGP",destination:"IND",inputTokens:130000000000,outputTokens:101000000000},
+  {period:"2026-03",origin:"SGP",destination:"AUS",inputTokens:60000000000,outputTokens:47000000000},
+  {period:"2026-03",origin:"SGP",destination:"JPN",inputTokens:52000000000,outputTokens:41000000000},
+  {period:"2026-03",origin:"SGP",destination:"KOR",inputTokens:39000000000,outputTokens:30000000000},
+  {period:"2026-03",origin:"SGP",destination:"ARE",inputTokens:24000000000,outputTokens:19000000000},
+  {period:"2026-03",origin:"ARE",destination:"IND",inputTokens:25000000000,outputTokens:19000000000},
+  {period:"2026-03",origin:"DEU",destination:"GBR",inputTokens:32000000000,outputTokens:24000000000},
+  {period:"2026-03",origin:"JPN",destination:"USA",inputTokens:46000000000,outputTokens:37000000000},
+  {period:"2026-03",origin:"GBR",destination:"IND",inputTokens:47000000000,outputTokens:36000000000},
+  {period:"2026-03",origin:"KOR",destination:"JPN",inputTokens:16000000000,outputTokens:12000000000},
+  {period:"2026-03",origin:"BRA",destination:"USA",inputTokens:9000000000,outputTokens:7000000000},
+  // ---- 2026-04 ----
+  {period:"2026-04",origin:"USA",destination:"IND",inputTokens:262000000000,outputTokens:212000000000},
+  {period:"2026-04",origin:"USA",destination:"GBR",inputTokens:165000000000,outputTokens:128000000000},
+  {period:"2026-04",origin:"USA",destination:"DEU",inputTokens:132000000000,outputTokens:104000000000},
+  {period:"2026-04",origin:"USA",destination:"JPN",inputTokens:142000000000,outputTokens:114000000000},
+  {period:"2026-04",origin:"USA",destination:"BRA",inputTokens:95000000000,outputTokens:72000000000},
+  {period:"2026-04",origin:"USA",destination:"CAN",inputTokens:112000000000,outputTokens:86000000000},
+  {period:"2026-04",origin:"USA",destination:"AUS",inputTokens:76000000000,outputTokens:59000000000},
+  {period:"2026-04",origin:"USA",destination:"KOR",inputTokens:68000000000,outputTokens:53000000000},
+  {period:"2026-04",origin:"USA",destination:"FRA",inputTokens:89000000000,outputTokens:70000000000},
+  {period:"2026-04",origin:"USA",destination:"SGP",inputTokens:60000000000,outputTokens:48000000000},
+  {period:"2026-04",origin:"USA",destination:"ARE",inputTokens:45000000000,outputTokens:35000000000},
+  {period:"2026-04",origin:"IRL",destination:"GBR",inputTokens:106000000000,outputTokens:82000000000},
+  {period:"2026-04",origin:"IRL",destination:"DEU",inputTokens:86000000000,outputTokens:67000000000},
+  {period:"2026-04",origin:"IRL",destination:"IND",inputTokens:99000000000,outputTokens:77000000000},
+  {period:"2026-04",origin:"IRL",destination:"FRA",inputTokens:54000000000,outputTokens:42000000000},
+  {period:"2026-04",origin:"IRL",destination:"BRA",inputTokens:42000000000,outputTokens:32000000000},
+  {period:"2026-04",origin:"SGP",destination:"IND",inputTokens:144000000000,outputTokens:113000000000},
+  {period:"2026-04",origin:"SGP",destination:"AUS",inputTokens:65000000000,outputTokens:51000000000},
+  {period:"2026-04",origin:"SGP",destination:"JPN",inputTokens:56000000000,outputTokens:44000000000},
+  {period:"2026-04",origin:"SGP",destination:"KOR",inputTokens:42000000000,outputTokens:33000000000},
+  {period:"2026-04",origin:"SGP",destination:"ARE",inputTokens:30000000000,outputTokens:24000000000},
+  {period:"2026-04",origin:"ARE",destination:"IND",inputTokens:42000000000,outputTokens:32000000000},
+  {period:"2026-04",origin:"ARE",destination:"GBR",inputTokens:16000000000,outputTokens:12000000000},
+  {period:"2026-04",origin:"IND",destination:"ARE",inputTokens:12000000000,outputTokens:9000000000},
+  {period:"2026-04",origin:"DEU",destination:"GBR",inputTokens:35000000000,outputTokens:27000000000},
+  {period:"2026-04",origin:"JPN",destination:"USA",inputTokens:50000000000,outputTokens:40000000000},
+  {period:"2026-04",origin:"GBR",destination:"IND",inputTokens:53000000000,outputTokens:41000000000},
+  {period:"2026-04",origin:"KOR",destination:"JPN",inputTokens:17000000000,outputTokens:13000000000},
+  {period:"2026-04",origin:"BRA",destination:"USA",inputTokens:12000000000,outputTokens:9000000000},
+  // ---- 2026-05 ----
+  {period:"2026-05",origin:"USA",destination:"IND",inputTokens:292000000000,outputTokens:238000000000},
+  {period:"2026-05",origin:"USA",destination:"GBR",inputTokens:175000000000,outputTokens:138000000000},
+  {period:"2026-05",origin:"USA",destination:"DEU",inputTokens:141000000000,outputTokens:112000000000},
+  {period:"2026-05",origin:"USA",destination:"JPN",inputTokens:151000000000,outputTokens:122000000000},
+  {period:"2026-05",origin:"USA",destination:"BRA",inputTokens:105000000000,outputTokens:81000000000},
+  {period:"2026-05",origin:"USA",destination:"CAN",inputTokens:118000000000,outputTokens:93000000000},
+  {period:"2026-05",origin:"USA",destination:"AUS",inputTokens:82000000000,outputTokens:64000000000},
+  {period:"2026-05",origin:"USA",destination:"KOR",inputTokens:73000000000,outputTokens:57000000000},
+  {period:"2026-05",origin:"USA",destination:"FRA",inputTokens:94000000000,outputTokens:75000000000},
+  {period:"2026-05",origin:"USA",destination:"SGP",inputTokens:65000000000,outputTokens:52000000000},
+  {period:"2026-05",origin:"USA",destination:"ARE",inputTokens:50000000000,outputTokens:39000000000},
+  {period:"2026-05",origin:"IRL",destination:"GBR",inputTokens:113000000000,outputTokens:88000000000},
+  {period:"2026-05",origin:"IRL",destination:"DEU",inputTokens:92000000000,outputTokens:72000000000},
+  {period:"2026-05",origin:"IRL",destination:"IND",inputTokens:114000000000,outputTokens:90000000000},
+  {period:"2026-05",origin:"IRL",destination:"FRA",inputTokens:58000000000,outputTokens:45000000000},
+  {period:"2026-05",origin:"IRL",destination:"BRA",inputTokens:47000000000,outputTokens:36000000000},
+  {period:"2026-05",origin:"SGP",destination:"IND",inputTokens:159000000000,outputTokens:126000000000},
+  {period:"2026-05",origin:"SGP",destination:"AUS",inputTokens:70000000000,outputTokens:55000000000},
+  {period:"2026-05",origin:"SGP",destination:"JPN",inputTokens:60000000000,outputTokens:48000000000},
+  {period:"2026-05",origin:"SGP",destination:"KOR",inputTokens:45000000000,outputTokens:35000000000},
+  {period:"2026-05",origin:"SGP",destination:"ARE",inputTokens:37000000000,outputTokens:29000000000},
+  {period:"2026-05",origin:"ARE",destination:"IND",inputTokens:62000000000,outputTokens:48000000000},
+  {period:"2026-05",origin:"ARE",destination:"GBR",inputTokens:26000000000,outputTokens:20000000000},
+  {period:"2026-05",origin:"IND",destination:"ARE",inputTokens:22000000000,outputTokens:17000000000},
+  {period:"2026-05",origin:"IND",destination:"SGP",inputTokens:10000000000,outputTokens:8000000000},
+  {period:"2026-05",origin:"DEU",destination:"GBR",inputTokens:37000000000,outputTokens:29000000000},
+  {period:"2026-05",origin:"JPN",destination:"USA",inputTokens:54000000000,outputTokens:43000000000},
+  {period:"2026-05",origin:"GBR",destination:"IND",inputTokens:59000000000,outputTokens:46000000000},
+  {period:"2026-05",origin:"KOR",destination:"JPN",inputTokens:18000000000,outputTokens:14000000000},
+  {period:"2026-05",origin:"BRA",destination:"USA",inputTokens:15000000000,outputTokens:11000000000},
+  // ---- 2026-06 ----
+  {period:"2026-06",origin:"USA",destination:"IND",inputTokens:320000000000,outputTokens:260000000000},
+  {period:"2026-06",origin:"USA",destination:"GBR",inputTokens:185000000000,outputTokens:150000000000},
+  {period:"2026-06",origin:"USA",destination:"DEU",inputTokens:150000000000,outputTokens:120000000000},
+  {period:"2026-06",origin:"USA",destination:"JPN",inputTokens:160000000000,outputTokens:130000000000},
+  {period:"2026-06",origin:"USA",destination:"BRA",inputTokens:115000000000,outputTokens:90000000000},
+  {period:"2026-06",origin:"USA",destination:"CAN",inputTokens:125000000000,outputTokens:100000000000},
+  {period:"2026-06",origin:"USA",destination:"AUS",inputTokens:88000000000,outputTokens:70000000000},
+  {period:"2026-06",origin:"USA",destination:"KOR",inputTokens:78000000000,outputTokens:62000000000},
+  {period:"2026-06",origin:"USA",destination:"FRA",inputTokens:100000000000,outputTokens:80000000000},
+  {period:"2026-06",origin:"USA",destination:"SGP",inputTokens:70000000000,outputTokens:56000000000},
+  {period:"2026-06",origin:"USA",destination:"ARE",inputTokens:56000000000,outputTokens:44000000000},
+  {period:"2026-06",origin:"IRL",destination:"GBR",inputTokens:120000000000,outputTokens:95000000000},
+  {period:"2026-06",origin:"IRL",destination:"DEU",inputTokens:98000000000,outputTokens:78000000000},
+  {period:"2026-06",origin:"IRL",destination:"IND",inputTokens:130000000000,outputTokens:105000000000},
+  {period:"2026-06",origin:"IRL",destination:"FRA",inputTokens:62000000000,outputTokens:49000000000},
+  {period:"2026-06",origin:"IRL",destination:"BRA",inputTokens:52000000000,outputTokens:40000000000},
+  {period:"2026-06",origin:"SGP",destination:"IND",inputTokens:175000000000,outputTokens:140000000000},
+  {period:"2026-06",origin:"SGP",destination:"AUS",inputTokens:75000000000,outputTokens:60000000000},
+  {period:"2026-06",origin:"SGP",destination:"JPN",inputTokens:64000000000,outputTokens:51000000000},
+  {period:"2026-06",origin:"SGP",destination:"KOR",inputTokens:48000000000,outputTokens:38000000000},
+  {period:"2026-06",origin:"SGP",destination:"ARE",inputTokens:44000000000,outputTokens:35000000000},
+  {period:"2026-06",origin:"ARE",destination:"IND",inputTokens:85000000000,outputTokens:66000000000},
+  {period:"2026-06",origin:"ARE",destination:"GBR",inputTokens:38000000000,outputTokens:30000000000},
+  {period:"2026-06",origin:"IND",destination:"ARE",inputTokens:34000000000,outputTokens:27000000000},
+  {period:"2026-06",origin:"IND",destination:"SGP",inputTokens:20000000000,outputTokens:16000000000},
+  {period:"2026-06",origin:"DEU",destination:"GBR",inputTokens:40000000000,outputTokens:31000000000},
+  {period:"2026-06",origin:"JPN",destination:"USA",inputTokens:58000000000,outputTokens:47000000000},
+  {period:"2026-06",origin:"GBR",destination:"IND",inputTokens:66000000000,outputTokens:52000000000},
+  {period:"2026-06",origin:"KOR",destination:"JPN",inputTokens:20000000000,outputTokens:16000000000},
+  {period:"2026-06",origin:"BRA",destination:"USA",inputTokens:18000000000,outputTokens:14000000000}
+];
+
+/* ---------- 3. COUNTRY_COORDS — GEOGRAPHIC LOOKUP ----------
+   Independent of all rendering logic. Real country reference points
+   (approximate geographic centroids), ISO 3166-1 alpha-3 keys.
+   To add a country: add it here, in ISO_NUMERIC, and use its code in
+   FLOWS. Coordinates are route endpoints — never screen positions.
+------------------------------------------------------------- */
+const COUNTRY_COORDS = {
+  USA:{name:"United States",     lon:-98.58,  lat:39.83},
+  CAN:{name:"Canada",            lon:-106.35, lat:56.13},
+  BRA:{name:"Brazil",            lon:-51.93,  lat:-14.24},
+  GBR:{name:"United Kingdom",    lon:-1.46,   lat:52.60},
+  IRL:{name:"Ireland",           lon:-8.24,   lat:53.41},
+  DEU:{name:"Germany",           lon:10.45,   lat:51.16},
+  FRA:{name:"France",            lon:2.21,    lat:46.23},
+  ARE:{name:"United Arab Emirates",lon:54.37, lat:23.42},
+  IND:{name:"India",             lon:78.96,   lat:20.59},
+  SGP:{name:"Singapore",         lon:103.82,  lat:1.35},
+  JPN:{name:"Japan",             lon:138.25,  lat:36.20},
+  KOR:{name:"South Korea",       lon:127.77,  lat:35.91},
+  AUS:{name:"Australia",         lon:133.78,  lat:-25.27}
+};
+
+/* ISO alpha-3 -> ISO 3166-1 numeric, for matching Natural Earth atlas ids. */
+const ISO_NUMERIC = {
+  USA:"840", CAN:"124", BRA:"076", GBR:"826", IRL:"372", DEU:"276",
+  FRA:"250", ARE:"784", IND:"356", SGP:"702", JPN:"392", KOR:"410", AUS:"036"
+};
+
+/* Singapore supplement: Natural Earth 1:110m omits city-states, so the
+   main-island outline below is embedded from Natural Earth 1:50m
+   (world-atlas 2.0.2, country id 702), decimated to its 8 source vertices.
+   Real geography, coarser resolution — not a fabricated shape. */
+const SG_SUPPLEMENT = {
+  type:"Feature",
+  properties:{name:"Singapore", iso:"SGP"},
+  geometry:{type:"Polygon",coordinates:[[
+    [103.9708,1.3321],[103.8196,1.2662],[103.6504,1.3252],[103.7044,1.4241],
+    [103.8196,1.4467],[103.9096,1.4155],[103.96,1.3929],[103.996,1.3651],
+    [103.9708,1.3321]
+  ]]}
+};
+
+/* ---------- 4. DATASET VALIDATION ----------
+   Runs at startup. Malformed data produces a visible, specific error —
+   records are never silently discarded. */
+function validateDataset(flows, coords) {
+  const errors = [];
+  const seen = new Set();
+  const periodRe = /^\d{4}-(0[1-9]|1[0-2])$/;
+  if (!Array.isArray(flows) || flows.length === 0) {
+    errors.push("FLOWS must be a non-empty array.");
+    return { ok:false, errors };
+  }
+  flows.forEach((r, i) => {
+    const at = "FLOWS[" + i + "]";
+    if (!r || typeof r !== "object") { errors.push(at + ": not an object."); return; }
+    for (const k of ["period","origin","destination","inputTokens","outputTokens"]) {
+      if (!(k in r)) errors.push(at + ": missing required property '" + k + "'.");
+    }
+    if (typeof r.period !== "string" || !periodRe.test(r.period))
+      errors.push(at + ": period '" + r.period + "' is not YYYY-MM with a valid month.");
+    for (const side of ["origin","destination"]) {
+      const code = r[side];
+      if (typeof code !== "string" || !coords[code]) {
+        errors.push(at + ": " + side + " '" + code + "' has no COUNTRY_COORDS entry.");
+      } else {
+        const c = coords[code];
+        if (typeof c.name !== "string" || !c.name)
+          errors.push(at + ": " + code + " is missing a display name.");
+        if (!Number.isFinite(c.lon) || c.lon < -180 || c.lon > 180 ||
+            !Number.isFinite(c.lat) || c.lat < -90 || c.lat > 90)
+          errors.push(at + ": " + code + " has invalid coordinates (" + c.lon + ", " + c.lat + ").");
+      }
+    }
+    if (r.origin && r.destination && r.origin === r.destination)
+      errors.push(at + ": origin and destination are the same country.");
+    for (const k of ["inputTokens","outputTokens"]) {
+      const v = r[k];
+      if (!Number.isInteger(v) || v < 0)
+        errors.push(at + ": " + k + " must be a nonnegative integer (got " + v + ").");
+      else if (v > Number.MAX_SAFE_INTEGER)
+        errors.push(at + ": " + k + " exceeds Number.MAX_SAFE_INTEGER.");
+    }
+    const key = r.period + "|" + r.origin + "|" + r.destination;
+    if (seen.has(key)) errors.push(at + ": duplicate record for " + key + ".");
+    seen.add(key);
+  });
+  // Every country used in FLOWS needs an ISO numeric mapping for the atlas.
+  for (const code of new Set(flows.flatMap(r => [r.origin, r.destination]))) {
+    if (coords[code] && !ISO_NUMERIC[code])
+      errors.push("Country " + code + " is missing an ISO_NUMERIC mapping.");
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+/* ---------- 5. AGGREGATION LAYER ----------
+   Single source of numeric truth. Every statistic, ranking, tooltip and
+   particle allocation in the app is derived from these functions, which
+   operate on the embedded FLOWS records. Exact integer arithmetic is used;
+   aggregates are guarded against Number.MAX_SAFE_INTEGER overflow. */
+const Agg = (() => {
+  const SAFE = Number.MAX_SAFE_INTEGER;
+  function guard(v, label) {
+    if (!Number.isFinite(v) || v > SAFE || v < -SAFE)
+      throw new Error("Aggregate '" + label + "' exceeds safe integer precision (" + v + "). Use BigInt-backed data for datasets this large.");
+    return v;
+  }
+  function periods() {
+    return [...new Set(FLOWS.map(r => r.period))].sort();
+  }
+  function recordsFor(period) {
+    return FLOWS.filter(r => r.period === period);
+  }
+  function totals(recs) {
+    let input = 0, output = 0;
+    const countries = new Set();
+    for (const r of recs) {
+      input += r.inputTokens; output += r.outputTokens;
+      countries.add(r.origin); countries.add(r.destination);
+    }
+    guard(input, "input"); guard(output, "output"); guard(input + output, "total");
+    return { input, output, total: input + output, routes: recs.length, countries: countries.size };
+  }
+  // Group by serving country (origin) or consuming country (destination).
+  function groupBy(recs, side) {
+    const m = new Map();
+    for (const r of recs) {
+      const code = r[side];
+      let g = m.get(code);
+      if (!g) { g = { code, name: COUNTRY_COORDS[code].name, input: 0, output: 0, total: 0, routes: 0 }; m.set(code, g); }
+      g.input += r.inputTokens; g.output += r.outputTokens;
+      g.total += r.inputTokens + r.outputTokens; g.routes++;
+    }
+    for (const g of m.values()) { guard(g.input, side + ".input"); guard(g.output, side + ".output"); guard(g.total, side + ".total"); }
+    return m;
+  }
+  const byOrigin = recs => groupBy(recs, "origin");
+  const byDestination = recs => groupBy(recs, "destination");
+  function routeVolumes(recs) {
+    const m = new Map();
+    for (const r of recs) {
+      const key = r.origin + ">" + r.destination;
+      let v = m.get(key);
+      if (!v) { v = { key, origin: r.origin, destination: r.destination, input: 0, output: 0, total: 0 }; m.set(key, v); }
+      v.input += r.inputTokens; v.output += r.outputTokens; v.total += r.inputTokens + r.outputTokens;
+    }
+    for (const v of m.values()) guard(v.total, "route.total");
+    return m;
+  }
+  // Selected-country metrics. Directions are explicit, never ambiguous:
+  //   serving.outputServed   = generated tokens this country SERVES to others (origin side, output)
+  //   serving.inputReceived  = prompt tokens this country RECEIVES as server (origin side, input)
+  //   consuming.outputReceived = generated tokens this country RECEIVES as consumer (destination side, output)
+  //   consuming.inputSent    = prompt tokens this country SENDS as consumer (destination side, input)
+  function countryMetrics(code, recs) {
+    const s = { outputServed: 0, inputReceived: 0, total: 0, partners: 0 };
+    const c = { outputReceived: 0, inputSent: 0, total: 0, partners: 0 };
+    const sPartners = new Set(), cPartners = new Set();
+    for (const r of recs) {
+      if (r.origin === code) {
+        s.outputServed += r.outputTokens; s.inputReceived += r.inputTokens;
+        s.total += r.inputTokens + r.outputTokens; sPartners.add(r.destination);
+      }
+      if (r.destination === code) {
+        c.outputReceived += r.outputTokens; c.inputSent += r.inputTokens;
+        c.total += r.inputTokens + r.outputTokens; cPartners.add(r.origin);
+      }
+    }
+    s.partners = sPartners.size; c.partners = cPartners.size;
+    guard(s.total, "country.serving"); guard(c.total, "country.consuming");
+    return { serving: s, consuming: c };
+  }
+  // Rankings: total-associated volume, grouped by destination (consuming)
+  // or origin (serving). Share denominator is always the period total.
+  function rankings(recs, mode, limit) {
+    const groups = mode === "serving" ? byOrigin(recs) : byDestination(recs);
+    const t = totals(recs);
+    const rows = [...groups.values()]
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+      .map((g, i) => ({ rank: i + 1, ...g, share: t.total > 0 ? g.total / t.total : 0 }));
+    return limit ? rows.slice(0, limit) : rows;
+  }
+  // Partner rankings for a selected country.
+  //   mode "consumers": countries consuming FROM the selected server (origin=code, group by destination)
+  //   mode "servers":   countries serving the selected consumer (destination=code, group by origin)
+  function partners(code, recs, mode) {
+    const m = new Map();
+    let denom = 0;
+    for (const r of recs) {
+      const match = mode === "consumers" ? r.origin === code : r.destination === code;
+      if (!match) continue;
+      const other = mode === "consumers" ? r.destination : r.origin;
+      let g = m.get(other);
+      if (!g) { g = { code: other, name: COUNTRY_COORDS[other].name, input: 0, output: 0, total: 0 }; m.set(other, g); }
+      g.input += r.inputTokens; g.output += r.outputTokens;
+      g.total += r.inputTokens + r.outputTokens;
+      denom += r.inputTokens + r.outputTokens;
+    }
+    guard(denom, "partners.denom");
+    return [...m.values()]
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+      .map((g, i) => ({ rank: i + 1, ...g, share: denom > 0 ? g.total / denom : 0 }));
+  }
+  function pct(part, whole) { return whole > 0 ? (part / whole) * 100 : 0; }
+  return { periods, recordsFor, totals, byOrigin, byDestination, routeVolumes, countryMetrics, rankings, partners, pct, guard };
+})();
+
+/* ---------- 6. PARTICLE ALLOCATION ----------
+   Deterministic, budgeted, square-root volume scale (documented in the
+   methodology panel):
+     weight(stream) = sqrt(volume)
+     radius(stream) = clamp(1 + 2.2 * sqrt(volume / maxVolume), 1, 3.2) px
+   Budget: <= 150 particles (<= 75 low-power). Every visible nonzero stream
+   gets one particle where the budget allows; the remainder is distributed
+   proportionally to sqrt-weights using the largest-remainder method with
+   stable tie-breaking, so counts never flicker between identical states.
+   Particles encode RELATIVE volume — they are not individual tokens. */
+function allocateParticles(streams, budget) {
+  // streams: [{ key, volume }] — visible, nonzero, already filtered.
+  const counts = new Map();
+  if (!streams.length || budget <= 0) return counts;
+  const weighted = streams
+    .map(s => ({ key: s.key, volume: s.volume, w: Math.sqrt(s.volume) }))
+    .sort((a, b) => b.w - a.w || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const n = weighted.length;
+  if (budget < n) {
+    // Not enough budget for everyone: strongest streams get one each.
+    for (let i = 0; i < budget; i++) counts.set(weighted[i].key, 1);
+    return counts;
+  }
+  for (const s of weighted) counts.set(s.key, 1);
+  let remaining = budget - n;
+  const sumW = weighted.reduce((a, s) => a + s.w, 0);
+  const quotas = weighted.map(s => {
+    const q = remaining * (s.w / sumW);
+    return { key: s.key, floor: Math.floor(q), frac: q - Math.floor(q) };
+  });
+  let used = quotas.reduce((a, q) => a + q.floor, 0);
+  for (const q of quotas) counts.set(q.key, counts.get(q.key) + q.floor);
+  let leftover = remaining - used;
+  const byFrac = [...quotas].sort((a, b) => b.frac - a.frac || (a.key < b.key ? -1 : 1));
+  for (let i = 0; leftover > 0 && i < byFrac.length; i++, leftover--)
+    counts.set(byFrac[i].key, counts.get(byFrac[i].key) + 1);
+  return counts;
+}
+function particleRadius(volume, maxVolume) {
+  if (!(volume > 0) || !(maxVolume > 0)) return CFG.radiusMin;
+  const r = CFG.radiusBase + CFG.radiusGain * Math.sqrt(volume / maxVolume);
+  return Math.min(CFG.radiusMax, Math.max(CFG.radiusMin, r));
+}
+
+/* ---------- 7. GEOGRAPHIC MATH, VISIBILITY & ROUTES ----------
+   All route geometry is geographic: great-circle (slerp) interpolation
+   between real country reference points, projected through an orthographic
+   projection. Hemisphere visibility is tested explicitly per point with
+   dot(p, viewCenter) > 0 — a circular canvas clip is NOT used for routes
+   or particles. Antimeridian crossings are handled naturally because all
+   math is done on unit vectors, never on raw longitude differences. */
+const Geo = (() => {
+  const DEG = Math.PI / 180;
+  const toVec = (lon, lat) => {
+    const l = lon * DEG, p = lat * DEG, cp = Math.cos(p);
+    return [cp * Math.cos(l), cp * Math.sin(l), Math.sin(p)];
+  };
+  const toLonLat = v => [Math.atan2(v[1], v[0]) / DEG, Math.asin(Math.max(-1, Math.min(1, v[2]))) / DEG];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const dist = (a, b) => Math.atan2(Math.hypot(...cross(a, b)), dot(a, b)); // radians, robust
+  // Great-circle interpolation. Near-antipodal pairs fall back to a stable
+  // orthogonal axis so interpolation never produces NaN.
+  function slerp(a, b, t) {
+    const d = dot(a, b);
+    const omega = Math.acos(Math.max(-1, Math.min(1, d)));
+    if (omega < 1e-8) return a.slice();
+    let axis = b;
+    if (Math.PI - omega < 1e-6) {
+      axis = norm(cross(a, Math.abs(a[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]));
+      const s = Math.sin(omega * t);
+      return norm([a[0] * Math.cos(omega * t) + axis[0] * s, a[1] * Math.cos(omega * t) + axis[1] * s, a[2] * Math.cos(omega * t) + axis[2] * s]);
+    }
+    const s = Math.sin(omega);
+    const wa = Math.sin((1 - t) * omega) / s, wb = Math.sin(t * omega) / s;
+    return [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb, a[2] * wa + b[2] * wb];
+  }
+  // Orthographic projection math (identical to d3.geoOrthographic with
+  // rotate([-centerLon, -centerLat]); verified by a dev parity test).
+  // state.rotation stores d3-style rotate angles [lambda0, phi0].
+  function centerVec(rotation) { return toVec(-rotation[0], -rotation[1]); }
+  function projectVec(v, rotation, scale, cx, cy) {
+    const c = centerVec(rotation);
+    // Build the tangent basis at the view center.
+    const lonC = -rotation[0] * DEG, latC = -rotation[1] * DEG;
+    const east = [-Math.sin(lonC), Math.cos(lonC), 0];
+    const north = [-Math.sin(latC) * Math.cos(lonC), -Math.sin(latC) * Math.sin(lonC), Math.cos(latC)];
+    const x = dot(v, east), y = dot(v, north);
+    return [cx + scale * x, cy - scale * y, dot(v, c)]; // third value: cosc (visibility)
+  }
+  function project(lonlat, rotation, scale, cx, cy) {
+    return projectVec(toVec(lonlat[0], lonlat[1]), rotation, scale, cx, cy);
+  }
+  // Inverse orthographic: screen px -> [lon, lat], or null outside the sphere.
+  function invert(px, py, rotation, scale, cx, cy) {
+    const dx = (px - cx) / scale, dy = (cy - py) / scale;
+    const rho = Math.hypot(dx, dy);
+    if (rho > 1) return null;
+    const latC = -rotation[1] * DEG, lonC = -rotation[0] * DEG;
+    if (rho < 1e-9) return [-rotation[0], -rotation[1]];
+    const c = Math.asin(rho), sc = Math.sin(c), cc = Math.cos(c);
+    const lat = Math.asin(cc * Math.sin(latC) + (dy * sc * Math.cos(latC)) / rho);
+    const lon = lonC + Math.atan2(dx * sc, rho * Math.cos(latC) * cc - dy * Math.sin(latC) * sc);
+    return [lon / DEG, lat / DEG];
+  }
+  const visible = (v, rotation) => dot(v, centerVec(rotation)) > 1e-6;
+  // Cross-track angular distance from point p to great circle through a,b.
+  function crossTrack(p, a, b) {
+    const n = norm(cross(a, b));
+    return Math.asin(Math.max(-1, Math.min(1, Math.abs(dot(p, n)))));
+  }
+  return { DEG, toVec, toLonLat, dot, cross, norm, dist, slerp, centerVec, project, projectVec, invert, visible, crossTrack };
+})();
+
+/* Route objects are built ONCE from the union of all FLOWS pairs and
+   reused for every period. Samples are dense enough (~1.2° steps) that
+   horizon crossings can be refined by bisection for clean geographic
+   clipping of the route lines themselves. */
+const ROUTES = (() => {
+  const pairs = new Map();
+  for (const r of FLOWS) {
+    const key = r.origin + ">" + r.destination;
+    if (!pairs.has(key)) pairs.set(key, { origin: r.origin, destination: r.destination });
+  }
+  const routes = [];
+  for (const [key, p] of [...pairs.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
+    const ca = COUNTRY_COORDS[p.origin], cb = COUNTRY_COORDS[p.destination];
+    const a = Geo.toVec(ca.lon, ca.lat), b = Geo.toVec(cb.lon, cb.lat);
+    const distRad = Geo.dist(a, b);
+    const steps = Math.max(24, Math.ceil((distRad / Geo.DEG) / 1.2));
+    const samples = [];
+    for (let i = 0; i <= steps; i++) samples.push(Geo.slerp(a, b, i / steps));
+    routes.push({
+      key, origin: p.origin, destination: p.destination,
+      a, b, distRad, distDeg: distRad / Geo.DEG, samples,
+      // t in [0,1] along origin->destination. Input particles run 1-t.
+      at: t => Geo.slerp(a, b, t),
+      durationMs: (distRad / Geo.DEG) / 14 * 1000 // ~14°/s angular speed
+    });
+  }
+  return routes;
+})();
+const ROUTE_BY_KEY = new Map(ROUTES.map(r => [r.key, r]));
+
+/* ---------- Application state ---------- */
+const state = {
+  periodIdx: 0,
+  playing: false, speed: 1, loop: true,
+  selectedCountry: null, selectedRoute: null,
+  hoverCountry: null, hoverRoute: null,
+  showInput: true, showOutput: true, showRoutes: true, lowPower: false,
+  autoRotate: true,
+  rotation: [-60, -20],           // d3-style rotate; initial view: Indian Ocean rim
+  rankMode: "consuming",
+  partnerMode: "consumers",       // "consumers" | "servers"
+  story: null,
+  dragging: false,
+  lastInteraction: 0,
+  clock: 0,                       // particle animation time (ms), frozen when hidden/reduced
+  lastFrameTs: 0,
+  lastAdvanceTs: 0,
+  fade: null,                     // { prev: Map(routeKey->volumes), t0 }
+  spotlight: null,                // { from, to, t0 }
+  frames: 0,
+  reducedMotion: false, motionOverride: false, fatal: false,
+  assets: { d3: false, topojson: false, atlas: false },
+  fallback: null,                 // null | "d3" | "atlas" | "all"
+  validation: null,
+  baseDirty: true,
+  lastBaseRotation: [NaN, NaN],
+  pointer: { x: 0, y: 0, inside: false },
+  ready: false
+};
+let PERIODS = [];
+
+/* ---------- 8. RENDERING ----------
+   Layered drawing:
+     base offscreen canvas  — atmosphere, sphere, graticule, country fills,
+                              borders, selected-country highlight. Rebuilt
+                              only when rotation moves > 0.08°, selection
+                              changes, or the viewport resizes (geometry is
+                              never recomputed per particle frame).
+     main canvas per frame  — cached base bitmap, geodesic route lines with
+                              true horizon clipping, particles, hover marks.
+   If D3 fails to load, a native-Canvas fallback draws the sphere and
+   graticules with the same projection math (no country polygons). */
+const el = id => document.getElementById(id);
+const canvas = el("globe");
+const ctx = canvas.getContext("2d");
+const baseCanvas = document.createElement("canvas");
+const bctx = baseCanvas.getContext("2d");
+const view = { w: 0, h: 0, dpr: 1, scale: 100, cx: 0, cy: 0 };
+let countryFeatures = new Map();   // ISO alpha-3 -> GeoJSON feature
+let allFeatures = [];
+let borderMesh = null;
+let d3Projection = null;
+
+function resize() {
+  const stage = el("stage");
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (w < 10 || h < 10) return;
+  view.dpr = Math.min(window.devicePixelRatio || 1, state.lowPower ? CFG.dprCapLow : CFG.dprCap);
+  view.w = w; view.h = h;
+  view.scale = Math.min(w, h) / 2 - 26;
+  view.cx = w / 2; view.cy = h / 2;
+  canvas.width = Math.round(w * view.dpr); canvas.height = Math.round(h * view.dpr);
+  baseCanvas.width = canvas.width; baseCanvas.height = canvas.height;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  state.baseDirty = true;
+}
+
+function setupGeography(topo) {
+  const feats = window.topojson.feature(topo, topo.objects.countries).features;
+  borderMesh = window.topojson.mesh(topo, topo.objects.countries, (a, b) => a !== b);
+  allFeatures = feats;
+  for (const [code, numeric] of Object.entries(ISO_NUMERIC)) {
+    const f = feats.find(f => String(f.id) === numeric || String(f.id) === String(parseInt(numeric, 10)));
+    if (f) { f.properties = f.properties || {}; f.properties.iso = code; countryFeatures.set(code, f); }
+  }
+  // Natural Earth 1:110m omits city-states; use the embedded 1:50m outline.
+  if (!countryFeatures.has("SGP")) {
+    const sg = JSON.parse(JSON.stringify(SG_SUPPLEMENT));
+    sg.id = "702";
+    allFeatures.push(sg);
+    countryFeatures.set("SGP", sg);
+  }
+}
+
+/* Draw a geographic polyline with genuine hemisphere clipping: visible
+   runs are stroked; horizon crossings are refined by bisection so lines
+   end exactly at the limb instead of being chopped at sample points. */
+function strokeGeoLine(c, samples, style, width) {
+  const rot = state.rotation, sc = view.scale, cx = view.cx, cy = view.cy;
+  const center = Geo.centerVec(rot);
+  const proj = v => {
+    const p = Geo.projectVec(v, rot, sc, cx, cy);
+    return { x: p[0], y: p[1], vis: Geo.dot(v, center) > 0 };
+  };
+  const horizon = (v1, v2) => {
+    let lo = 0, hi = 1;
+    const d1 = Geo.dot(v1, center);
+    for (let i = 0; i < 14; i++) {
+      const mid = (lo + hi) / 2;
+      const vm = Geo.slerp(v1, v2, mid);
+      if ((Geo.dot(vm, center) > 0) === (d1 > 0)) lo = mid; else hi = mid;
+    }
+    return Geo.slerp(v1, v2, (lo + hi) / 2);
+  };
+  c.strokeStyle = style; c.lineWidth = width; c.lineCap = "round";
+  let run = [];
+  const flush = () => {
+    if (run.length > 1) {
+      c.beginPath();
+      c.moveTo(run[0].x, run[0].y);
+      for (let i = 1; i < run.length; i++) c.lineTo(run[i].x, run[i].y);
+      c.stroke();
+    }
+    run = [];
+  };
+  let prev = null;
+  for (const v of samples) {
+    const p = proj(v);
+    if (prev && p.vis !== prev.vis) {
+      const h = proj(horizon(prev.v, v));
+      if (prev.vis) { run.push(h); flush(); }
+      else { run = [h]; }
+    }
+    if (p.vis) run.push(p);
+    prev = { ...p, v };
+  }
+  flush();
+}
+
+function rebuildBase() {
+  const { w, h, dpr, scale, cx, cy } = view;
+  bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  bctx.clearRect(0, 0, w, h);
+  // Atmospheric halo — subtle, never obscures borders.
+  const halo = bctx.createRadialGradient(cx, cy, scale * 0.97, cx, cy, scale * 1.09);
+  halo.addColorStop(0, "rgba(63,154,224,0.14)");
+  halo.addColorStop(0.45, "rgba(63,154,224,0.07)");
+  halo.addColorStop(1, "rgba(63,154,224,0)");
+  bctx.fillStyle = halo;
+  bctx.beginPath(); bctx.arc(cx, cy, scale * 1.09, 0, Math.PI * 2); bctx.fill();
+  // Ocean sphere with controlled lighting.
+  const ocean = bctx.createRadialGradient(cx - scale * 0.3, cy - scale * 0.35, scale * 0.1, cx, cy, scale);
+  ocean.addColorStop(0, "#152538");
+  ocean.addColorStop(1, "#0E1927");
+  bctx.fillStyle = ocean;
+  bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2); bctx.fill();
+
+  if (window.d3) {
+    d3Projection = window.d3.geoOrthographic()
+      .rotate(state.rotation).scale(scale).translate([cx, cy]).precision(0.4);
+    const path = window.d3.geoPath(d3Projection, bctx);
+    // Graticule
+    bctx.beginPath(); path(window.d3.geoGraticule10());
+    bctx.strokeStyle = CFG.colors.graticule; bctx.lineWidth = 0.5; bctx.stroke();
+    if (state.assets.atlas && allFeatures.length) {
+      // Country fills (one batched path)
+      bctx.beginPath();
+      for (const f of allFeatures) path(f);
+      bctx.fillStyle = CFG.colors.countryFill; bctx.fill();
+      // Borders
+      if (borderMesh) {
+        bctx.beginPath(); path(borderMesh);
+        bctx.strokeStyle = "rgba(87,112,132,0.55)"; bctx.lineWidth = 0.6; bctx.stroke();
+      }
+      // Selected country highlight
+      if (state.selectedCountry) {
+        const f = countryFeatures.get(state.selectedCountry);
+        if (f) {
+          bctx.beginPath(); path(f);
+          bctx.fillStyle = "#1D3348"; bctx.fill();
+          bctx.beginPath(); path(f);
+          bctx.strokeStyle = "rgba(192,232,255,0.18)"; bctx.lineWidth = 4; bctx.stroke();
+          bctx.beginPath(); path(f);
+          bctx.strokeStyle = CFG.colors.selection; bctx.lineWidth = 1.3; bctx.stroke();
+        }
+      }
+    }
+  } else {
+    // Native-Canvas fallback: sphere outline + manual graticule.
+    bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2);
+    bctx.strokeStyle = "rgba(87,112,132,0.8)"; bctx.lineWidth = 1; bctx.stroke();
+    const grat = [];
+    for (let lon = -180; lon < 180; lon += 30) {
+      const line = [];
+      for (let lat = -87; lat <= 87; lat += 3) line.push(Geo.toVec(lon, lat));
+      grat.push(line);
+    }
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const line = [];
+      for (let lon = -180; lon <= 180; lon += 3) line.push(Geo.toVec(lon, lat));
+      grat.push(line);
+    }
+    for (const line of grat) strokeGeoLine(bctx, line, CFG.colors.graticule, 0.5);
+    if (state.selectedCountry) drawReferenceRing(bctx, state.selectedCountry, CFG.colors.selection, 1.3);
+  }
+  state.baseDirty = false;
+  state.lastBaseRotation = [state.rotation[0], state.rotation[1]];
+}
+
+function drawReferenceRing(c, code, color, width) {
+  const cc = COUNTRY_COORDS[code];
+  const p = Geo.project([cc.lon, cc.lat], state.rotation, view.scale, view.cx, view.cy);
+  if (p[2] <= 0) return;
+  c.beginPath(); c.arc(p[0], p[1], 6, 0, Math.PI * 2);
+  c.strokeStyle = color; c.lineWidth = width; c.stroke();
+}
+
+/* ---------- Route lines ---------- */
+function currentVolumes() { return Agg.routeVolumes(Agg.recordsFor(PERIODS[state.periodIdx])); }
+
+function routeFocus(key) {
+  const r = ROUTE_BY_KEY.get(key);
+  if (state.selectedRoute) return key === state.selectedRoute ? 1 : 0.10;
+  if (state.selectedCountry) return (r.origin === state.selectedCountry || r.destination === state.selectedCountry) ? 1 : 0.12;
+  return 1;
+}
+
+function drawRoutes(now) {
+  if (!state.showRoutes) return;
+  const vols = currentVolumes();
+  let fadeF = 1;
+  if (state.fade) {
+    fadeF = Math.min(1, (now - state.fade.t0) / CFG.crossfadeMs);
+    fadeF = fadeF * fadeF * (3 - 2 * fadeF); // smoothstep
+    if (fadeF >= 1) state.fade = null;
+  }
+  const keys = new Set(vols.keys());
+  if (state.fade) for (const k of state.fade.prev.keys()) keys.add(k);
+  let maxTotal = 1;
+  for (const v of vols.values()) maxTotal = Math.max(maxTotal, v.total);
+  for (const key of keys) {
+    const route = ROUTE_BY_KEY.get(key);
+    if (!route) continue;
+    const cur = vols.get(key), prev = state.fade ? state.fade.prev.get(key) : null;
+    const effTotal = (prev ? prev.total : 0) + ((cur ? cur.total : 0) - (prev ? prev.total : 0)) * fadeF;
+    if (effTotal <= 0) continue;
+    const focus = routeFocus(key);
+    let alpha = (0.10 + 0.16 * Math.sqrt(effTotal / maxTotal)) * focus;
+    let color = CFG.colors.route, width = 1;
+    if (state.hoverRoute === key) { alpha = Math.max(alpha, 0.55); color = "159,196,224"; width = 1.4; }
+    if (state.selectedRoute === key) { alpha = 0.75; color = "159,196,224"; width = 1.5; }
+    if (alpha < 0.015) continue;
+    strokeGeoLine(ctx, route.samples, "rgba(" + color + "," + alpha.toFixed(3) + ")", width);
+    // Endpoint markers for inspected routes.
+    if (state.hoverRoute === key || state.selectedRoute === key) {
+      for (const v of [route.a, route.b]) {
+        const p = Geo.projectVec(v, state.rotation, view.scale, view.cx, view.cy);
+        if (p[2] > 0) {
+          ctx.beginPath(); ctx.arc(p[0], p[1], 2.6, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(192,232,255,0.9)"; ctx.fill();
+        }
+      }
+    }
+  }
+}
+
+/* ---------- 9. PARTICLE SYSTEM ----------
+   A fixed pool of reusable particle objects (never allocated per frame).
+   Allocation is recomputed only when period, filters or selection change.
+   Position is time-based: t = (clock / duration + phase) mod 1, with the
+   input stream running the route in reverse (destination -> origin). */
+const particlePool = Array.from({ length: CFG.particleBudget }, () => ({
+  active: false, key: "", route: null, dir: "out", phase: 0, duration: 1, radius: 1, color: CFG.colors.output
+}));
+let allocation = new Map();
+let activeStreamList = [];
+
+function relevantRoute(route) {
+  if (state.selectedRoute) return route.key === state.selectedRoute;
+  if (state.selectedCountry) return route.origin === state.selectedCountry || route.destination === state.selectedCountry;
+  return true;
+}
+
+function updateAllocation() {
+  const vols = currentVolumes();
+  const streams = [];
+  for (const route of ROUTES) {
+    const v = vols.get(route.key);
+    if (!v || !relevantRoute(route)) continue;
+    if (state.showInput && v.input > 0) streams.push({ key: route.key + "|in", routeKey: route.key, dir: "in", volume: v.input });
+    if (state.showOutput && v.output > 0) streams.push({ key: route.key + "|out", routeKey: route.key, dir: "out", volume: v.output });
+  }
+  streams.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+  activeStreamList = streams;
+  const budget = state.lowPower ? CFG.particleBudgetLow : CFG.particleBudget;
+  allocation = allocateParticles(streams, budget);
+  const maxVolume = streams.reduce((m, s) => Math.max(m, s.volume), 0);
+  let idx = 0;
+  for (const s of streams) {
+    const count = allocation.get(s.key) || 0;
+    const route = ROUTE_BY_KEY.get(s.routeKey);
+    const radius = particleRadius(s.volume, maxVolume);
+    const color = s.dir === "in" ? CFG.colors.input : CFG.colors.output;
+    for (let i = 0; i < count && idx < particlePool.length; i++, idx++) {
+      const p = particlePool[idx];
+      p.active = true; p.key = s.key; p.route = route; p.dir = s.dir;
+      p.phase = (i + 0.5) / count; p.duration = route.durationMs;
+      p.radius = radius; p.color = color;
+    }
+  }
+  for (; idx < particlePool.length; idx++) particlePool[idx].active = false;
+}
+
+function drawParticles() {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const rot = state.rotation, sc = view.scale, cx = view.cx, cy = view.cy;
+  const center = Geo.centerVec(rot);
+  const tails = !state.lowPower;
+  for (const p of particlePool) {
+    if (!p.active) continue;
+    let t = ((state.clock / p.duration) + p.phase) % 1;
+    const geoT = p.dir === "in" ? 1 - t : t;
+    const v = p.route.at(geoT);
+    if (Geo.dot(v, center) <= 1e-6) continue; // behind the Earth: hidden immediately
+    const pos = Geo.projectVec(v, rot, sc, cx, cy);
+    const rgb = p.dir === "in" ? "89,201,245" : "255,181,107";
+    if (tails) {
+      const tailAlphas = [0.30, 0.18, 0.09];
+      for (let k = 1; k <= 3; k++) {
+        let tt = t - k * 0.013;
+        if (tt < 0) break; // tail truncates at the route endpoint, never wraps
+        const gv = p.route.at(p.dir === "in" ? 1 - tt : tt);
+        if (Geo.dot(gv, center) <= 1e-6) break;
+        const tp = Geo.projectVec(gv, rot, sc, cx, cy);
+        ctx.beginPath(); ctx.arc(tp[0], tp[1], p.radius * 0.72, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(" + rgb + "," + tailAlphas[k - 1] + ")"; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(pos[0], pos[1], p.radius * 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(" + rgb + ",0.13)"; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(pos[0], pos[1], p.radius, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(" + rgb + ",0.95)"; ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawHoverCountry() {
+  const code = state.hoverCountry;
+  if (!code || code === state.selectedCountry) return;
+  if (window.d3 && state.assets.atlas) {
+    const f = countryFeatures.get(code);
+    if (!f) return;
+    const proj = window.d3.geoOrthographic().rotate(state.rotation).scale(view.scale).translate([view.cx, view.cy]);
+    const path = window.d3.geoPath(proj, ctx);
+    ctx.beginPath(); path(f);
+    ctx.strokeStyle = "rgba(192,232,255,0.5)"; ctx.lineWidth = 1; ctx.stroke();
+  } else {
+    drawReferenceRing(ctx, code, "rgba(192,232,255,0.6)", 1);
+  }
+}
+
+/* ---------- Frame loop ---------- */
+let rafId = null;
+function frame(ts) {
+  rafId = requestAnimationFrame(frame);
+  const dt = state.lastFrameTs ? Math.min(ts - state.lastFrameTs, 100) : 16;
+  state.lastFrameTs = ts;
+  if (!state.ready) return;
+
+  // Spotlight transition (elegant, quick, cancellable by drag).
+  if (state.spotlight) {
+    const s = state.spotlight;
+    const f = Math.min(1, (ts - s.t0) / CFG.spotlightMs);
+    const e = f < 0.5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2;
+    state.rotation = [s.from[0] + (s.to[0] - s.from[0]) * e, s.from[1] + (s.to[1] - s.from[1]) * e];
+    if (f >= 1) state.spotlight = null;
+  }
+
+  // Slow auto-rotation; paused while dragging, spotlighting, inspecting,
+  // or shortly after any interaction. Disabled under reduced motion.
+  const inspecting = state.pointer.inside && (state.hoverRoute || state.hoverCountry);
+  if (state.autoRotate && (!state.reducedMotion || state.motionOverride) && !state.dragging && !state.spotlight && !inspecting &&
+      ts - state.lastInteraction > CFG.idleResumeMs) {
+    state.rotation[0] += CFG.autoRotateDegPerSec * dt / 1000;
+    if (state.rotation[0] > 180) state.rotation[0] -= 360;
+  }
+
+  // Playback advances through real FLOWS periods only.
+  if (state.playing && ts - state.lastAdvanceTs >= CFG.playbackBaseMs / state.speed) {
+    state.lastAdvanceTs = ts;
+    advancePeriod(1, true);
+  }
+
+  if (!state.reducedMotion) state.clock += dt;
+
+  const rotMoved = Math.abs(state.rotation[0] - state.lastBaseRotation[0]) > 0.08 ||
+                   Math.abs(state.rotation[1] - state.lastBaseRotation[1]) > 0.08;
+  if (state.baseDirty || rotMoved || state.dragging) rebuildBase();
+
+  ctx.clearRect(0, 0, view.w, view.h);
+  ctx.drawImage(baseCanvas, 0, 0, view.w, view.h);
+  drawRoutes(ts);
+  drawParticles();
+  drawHoverCountry();
+  state.frames++;
+}
+
+function startLoop() { if (rafId === null) { state.lastFrameTs = 0; rafId = requestAnimationFrame(frame); } }
+function stopLoop() { if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; } }
+
+/* ---------- 10. FORMATTING ---------- */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function periodLabel(p) { const [y, m] = p.split("-"); return MONTHS[parseInt(m, 10) - 1] + " " + y; }
+function periodShort(p) { const [y, m] = p.split("-"); return MONTHS[parseInt(m, 10) - 1].slice(0, 3).toUpperCase() + " " + y; }
+function fmtCompact(n) {
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + "T";
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(n);
+}
+const fmtExact = n => n.toLocaleString("en-US");
+const fmtPct = x => (x >= 9.95 ? x.toFixed(1) : x.toFixed(2)) + "%";
+
+/* ---------- 11. HIT TESTING ---------- */
+function countryAtLonLat(lonlat) {
+  const p = Geo.toVec(lonlat[0], lonlat[1]);
+  if (window.d3 && state.assets.atlas) {
+    for (const [code, f] of countryFeatures) {
+      if (window.d3.geoContains(f, lonlat)) return code;
+    }
+    // Small-state assist: Singapore is a few px wide at globe scale.
+    const sg = COUNTRY_COORDS.SGP;
+    const threshold = Math.max(0.9 * Geo.DEG, 7 / view.scale);
+    if (Geo.dist(p, Geo.toVec(sg.lon, sg.lat)) < threshold) return "SGP";
+    return null;
+  }
+  // Fallback without polygons: nearest reference point within a generous
+  // angular threshold (clearly an approximation, explained in the notice).
+  let best = null, bestD = Infinity;
+  const threshold = Math.max(1.5 * Geo.DEG, 10 / view.scale);
+  for (const [code, c] of Object.entries(COUNTRY_COORDS)) {
+    const d = Geo.dist(p, Geo.toVec(c.lon, c.lat));
+    if (d < threshold && d < bestD) { best = code; bestD = d; }
+  }
+  return best;
+}
+
+function routeAtScreen(px, py) {
+  const ll = Geo.invert(px, py, state.rotation, view.scale, view.cx, view.cy);
+  if (!ll) return null;
+  const p = Geo.toVec(ll[0], ll[1]);
+  const threshold = 6 / view.scale; // ~6px cross-track tolerance
+  const vols = currentVolumes();
+  let best = null, bestCt = Infinity;
+  for (const route of ROUTES) {
+    if (!vols.has(route.key) || !relevantRoute(route)) continue;
+    const ct = Geo.crossTrack(p, route.a, route.b);
+    if (ct >= threshold) continue;
+    const along = Geo.dist(route.a, p) + Geo.dist(p, route.b) - route.distRad;
+    if (along < 0.04 && ct < bestCt) { best = route.key; bestCt = ct; }
+  }
+  return best;
+}
+
+/* ---------- 12. TOOLTIPS ---------- */
+const tooltip = el("tooltip");
+function positionTooltip(clientX, clientY) {
+  const pad = 8, off = 16;
+  const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+  let left = clientX + off, top = clientY + off;
+  if (left + w > window.innerWidth - pad) left = clientX - w - off;
+  if (top + h > window.innerHeight - pad) top = clientY - h - off;
+  tooltip.style.left = Math.max(pad, left) + "px";
+  tooltip.style.top = Math.max(pad, top) + "px";
+}
+function showRouteTooltip(key, clientX, clientY) {
+  const v = currentVolumes().get(key);
+  if (!v) { hideTooltip(); return; }
+  const so = COUNTRY_COORDS[v.origin].name, de = COUNTRY_COORDS[v.destination].name;
+  const period = PERIODS[state.periodIdx];
+  tooltip.innerHTML =
+    '<div class="tt-title">' + so.toUpperCase() + " &rarr; " + de.toUpperCase() + "</div>" +
+    '<div class="tt-sub">Serving: ' + so + " &middot; Consumption: " + de + "</div>" +
+    '<div class="tt-row"><span class="k"><span class="dot in"></span>Prompt tokens</span><span class="v" title="' + fmtExact(v.input) + ' tokens">' + fmtCompact(v.input) + "</span></div>" +
+    '<div class="tt-dir"><span class="dot in"></span>travels ' + de + " &rarr; " + so + " (reverse)</div>" +
+    '<div class="tt-row"><span class="k"><span class="dot out"></span>Generated tokens</span><span class="v" title="' + fmtExact(v.output) + ' tokens">' + fmtCompact(v.output) + "</span></div>" +
+    '<div class="tt-dir"><span class="dot out"></span>travels ' + so + " &rarr; " + de + "</div>" +
+    '<div class="tt-row total"><span class="k">Total associated</span><span class="v" title="' + fmtExact(v.total) + ' tokens">' + fmtCompact(v.total) + "</span></div>" +
+    '<div class="tt-foot">Period: ' + periodLabel(period) + " &middot; Synthetic demonstration</div>";
+  tooltip.classList.add("active");
+  tooltip.setAttribute("aria-hidden", "false");
+  positionTooltip(clientX, clientY);
+}
+function showCountryTooltip(code, clientX, clientY) {
+  const recs = Agg.recordsFor(PERIODS[state.periodIdx]);
+  const m = Agg.countryMetrics(code, recs);
+  const c = COUNTRY_COORDS[code];
+  tooltip.innerHTML =
+    '<div class="tt-title">' + c.name.toUpperCase() + ' <span class="mono" style="color:var(--text-muted)">' + code + "</span></div>" +
+    '<div class="tt-row"><span class="k">As serving country</span><span class="v">' + fmtCompact(m.serving.total) + "</span></div>" +
+    '<div class="tt-row"><span class="k">As consuming country</span><span class="v">' + fmtCompact(m.consuming.total) + "</span></div>" +
+    '<div class="tt-foot">Click to explore &middot; ' + periodLabel(PERIODS[state.periodIdx]) + "</div>";
+  tooltip.classList.add("active");
+  tooltip.setAttribute("aria-hidden", "false");
+  positionTooltip(clientX, clientY);
+}
+function hideTooltip() {
+  tooltip.classList.remove("active");
+  tooltip.setAttribute("aria-hidden", "true");
+}
+
+/* ---------- 13. SELECTION & SPOTLIGHT ---------- */
+function announce(msg) { el("sr-status").textContent = msg; }
+
+function spotlightTo(lon, lat) {
+  const target = [-lon, Math.max(-89.9, Math.min(89.9, -lat))];
+  const from = [state.rotation[0], state.rotation[1]];
+  const delta = ((target[0] - from[0] + 540) % 360) - 180; // shortest path
+  const to = [from[0] + delta, target[1]];
+  if (state.reducedMotion) { state.rotation = to; state.baseDirty = true; return; }
+  state.spotlight = { from, to, t0: performance.now() };
+}
+
+function selectCountry(code, withSpotlight = true) {
+  state.selectedCountry = code;
+  state.selectedRoute = null;
+  state.story = null;
+  el("story").classList.remove("active");
+  state.baseDirty = true;
+  updateAllocation();
+  refreshUI();
+  hideTooltip();
+  if (withSpotlight) { const c = COUNTRY_COORDS[code]; spotlightTo(c.lon, c.lat); }
+  announce("Selected " + COUNTRY_COORDS[code].name + ". Country intelligence updated for " + periodLabel(PERIODS[state.periodIdx]) + ".");
+}
+function selectRoute(key) {
+  const r = ROUTE_BY_KEY.get(key);
+  state.selectedRoute = key;
+  if (state.selectedCountry && r.origin !== state.selectedCountry && r.destination !== state.selectedCountry)
+    state.selectedCountry = null;
+  state.story = null;
+  el("story").classList.remove("active");
+  state.baseDirty = true;
+  updateAllocation();
+  refreshUI();
+  announce("Inspecting route " + COUNTRY_COORDS[r.origin].name + " to " + COUNTRY_COORDS[r.destination].name + ".");
+}
+function clearSelections() {
+  state.selectedCountry = null;
+  state.selectedRoute = null;
+  state.baseDirty = true;
+  updateAllocation();
+  refreshUI();
+  hideTooltip();
+  announce("Selection cleared.");
+}
+
+/* ---------- 14. POINTER & KEYBOARD INTERACTION ---------- */
+let dragStart = null, lastHoverTs = 0, touchTooltipTimer = null;
+
+canvas.addEventListener("pointerdown", e => {
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  canvas.setPointerCapture(e.pointerId);
+  dragStart = { x: e.clientX, y: e.clientY, moved: 0 };
+  state.dragging = true;
+  state.spotlight = null;
+  state.lastInteraction = performance.now();
+  hideTooltip();
+  canvas.style.cursor = "grabbing";
+  e.preventDefault();
+});
+
+canvas.addEventListener("pointermove", e => {
+  const rect = canvas.getBoundingClientRect();
+  state.pointer.x = e.clientX - rect.left;
+  state.pointer.y = e.clientY - rect.top;
+  state.pointer.inside = true;
+  if (state.dragging && dragStart) {
+    const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+    dragStart.x = e.clientX; dragStart.y = e.clientY;
+    dragStart.moved += Math.abs(dx) + Math.abs(dy);
+    const k = 60 / view.scale; // degrees per pixel, scaled to globe size
+    state.rotation[0] += dx * k;
+    if (state.rotation[0] > 180) state.rotation[0] -= 360;
+    if (state.rotation[0] < -180) state.rotation[0] += 360;
+    state.rotation[1] = Math.max(-89.9, Math.min(89.9, state.rotation[1] - dy * k));
+    state.baseDirty = true;
+    state.lastInteraction = performance.now();
+    return;
+  }
+  const now = performance.now();
+  if (now - lastHoverTs < 33) return; // throttle hover hit-testing to ~30Hz
+  lastHoverTs = now;
+  const rk = routeAtScreen(state.pointer.x, state.pointer.y);
+  const ll = Geo.invert(state.pointer.x, state.pointer.y, state.rotation, view.scale, view.cx, view.cy);
+  const ck = (!rk && ll) ? countryAtLonLat(ll) : null;
+  const changed = rk !== state.hoverRoute || ck !== state.hoverCountry;
+  state.hoverRoute = rk;
+  state.hoverCountry = ck;
+  canvas.style.cursor = (rk || ck) ? "pointer" : "grab";
+  if (rk) showRouteTooltip(rk, e.clientX, e.clientY);
+  else if (ck) showCountryTooltip(ck, e.clientX, e.clientY);
+  else if (changed) hideTooltip();
+  if (rk || ck) state.lastInteraction = now; // pause auto-rotate while inspecting
+});
+
+function endDrag(e) {
+  if (!state.dragging) return;
+  state.dragging = false;
+  canvas.style.cursor = "grab";
+  state.lastInteraction = performance.now();
+  const wasClick = dragStart && dragStart.moved < 6;
+  dragStart = null;
+  if (!wasClick) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const rk = routeAtScreen(x, y);
+  if (rk) {
+    if (state.selectedRoute === rk) { state.selectedRoute = null; updateAllocation(); refreshUI(); }
+    else selectRoute(rk);
+    if (e.pointerType === "touch") {
+      showRouteTooltip(rk, e.clientX, e.clientY);
+      clearTimeout(touchTooltipTimer);
+      touchTooltipTimer = setTimeout(hideTooltip, 3500);
+    }
+    return;
+  }
+  const ll = Geo.invert(x, y, state.rotation, view.scale, view.cx, view.cy);
+  const ck = ll ? countryAtLonLat(ll) : null;
+  if (ck) {
+    if (state.selectedCountry === ck) clearSelections();
+    else selectCountry(ck);
+  } else if (ll) {
+    clearSelections(); // ocean click clears
+  }
+}
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", e => { state.dragging = false; dragStart = null; canvas.style.cursor = "grab"; });
+canvas.addEventListener("pointerleave", () => {
+  state.pointer.inside = false;
+  state.hoverRoute = null; state.hoverCountry = null;
+  if (!state.dragging) hideTooltip();
+});
+
+canvas.addEventListener("keydown", e => {
+  const step = e.shiftKey ? 12 : 4;
+  let handled = true;
+  switch (e.key) {
+    case "ArrowLeft": state.rotation[0] += step; break;
+    case "ArrowRight": state.rotation[0] -= step; break;
+    case "ArrowUp": state.rotation[1] = Math.max(-89.9, state.rotation[1] - step); break;
+    case "ArrowDown": state.rotation[1] = Math.min(89.9, state.rotation[1] + step); break;
+    case "Home": state.rotation = [-60, -20]; break;
+    case "Enter": if (state.hoverCountry) selectCountry(state.hoverCountry); else handled = false; break;
+    default: handled = false;
+  }
+  if (handled) {
+    if (state.rotation[0] > 180) state.rotation[0] -= 360;
+    if (state.rotation[0] < -180) state.rotation[0] += 360;
+    state.baseDirty = true;
+    state.lastInteraction = performance.now();
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+
+document.addEventListener("keydown", e => {
+  if (e.target && e.target.closest && e.target.closest("input, select, textarea, button, a")) return;
+  if (e.target === canvas) return; // canvas handles its own arrows
+  if (e.code === "Space") { togglePlay(); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { stepPeriod(-1); e.preventDefault(); }
+  else if (e.key === "ArrowRight") { stepPeriod(1); e.preventDefault(); }
+  else if (e.key === "r" || e.key === "R") { setAutoRotate(!state.autoRotate); }
+  else if (e.key === "Escape") {
+    if (el("methodology").open) toggleMethod(false);
+    else if (state.selectedCountry || state.selectedRoute) clearSelections();
+    else if (state.story) dismissStory();
+  }
+});
+
+/* ---------- 15. UI UPDATES ----------
+   Every displayed number is derived from the current period's FLOWS subset
+   through the single Aggregation layer. DOM writes are cached/minimised. */
+let lastRankSig = "", lastClient = { x: 0, y: 0 };
+
+function setStat(id, text, exactTitle) {
+  const node = el(id);
+  if (node.textContent !== text) node.textContent = text;
+  if (exactTitle) node.title = exactTitle;
+}
+function metricRow(label, value, cls, exact) {
+  return '<div class="metric"><span>' + label + '</span><span class="val ' + (cls || "") +
+    '"' + (exact ? ' title="' + fmtExact(exact) + ' tokens"' : "") + '>' + value + '</span></div>';
+}
+function rankRowHtml(row, max) {
+  const pctW = max > 0 ? (row.total / max * 100).toFixed(1) : "0.0";
+  return '<li><button type="button" class="rank-row" data-code="' + row.code + '" title="' +
+    fmtExact(row.total) + ' tokens">' +
+    '<span class="rank-num">' + String(row.rank).padStart(2, "0") + '</span>' +
+    '<span class="rank-mid"><span class="rank-name">' + row.name + '</span>' +
+    '<span class="rank-bar"><span style="width:' + pctW + '%"></span></span></span>' +
+    '<span class="rank-right"><span class="rank-val">' + fmtCompact(row.total) + '</span>' +
+    '<span class="rank-share">' + fmtPct(row.share * 100) + '</span></span></button></li>';
+}
+function renderPartnerList(code, recs) {
+  const list = el("partner-list");
+  if (!list) return;
+  const rows = Agg.partners(code, recs, state.partnerMode);
+  const max = rows.length ? rows[0].total : 0;
+  list.innerHTML = rows.map(r => rankRowHtml(r, max)).join("");
+  const note = el("partner-note");
+  if (note) note.textContent = state.partnerMode === "consumers"
+    ? "Countries consuming from " + COUNTRY_COORDS[code].name + " · share of that country's serving total"
+    : "Countries serving " + COUNTRY_COORDS[code].name + " · share of that country's consumption total";
+}
+function renderIntel(code, recs) {
+  const m = Agg.countryMetrics(code, recs);
+  const name = COUNTRY_COORDS[code].name;
+  el("intel").innerHTML =
+    '<div class="intel-block">' +
+      '<h3>Serving activity — ' + name + '</h3>' +
+      '<div class="intel-metrics">' +
+        metricRow("Output tokens served to others", fmtCompact(m.serving.outputServed), "amber", m.serving.outputServed) +
+        metricRow("Input tokens received as server", fmtCompact(m.serving.inputReceived), "cyan", m.serving.inputReceived) +
+        metricRow("Associated serving volume", fmtCompact(m.serving.total), "", m.serving.total) +
+        metricRow("Consuming partners", String(m.serving.partners)) +
+      '</div>' +
+    '</div>' +
+    '<div class="intel-block">' +
+      '<h3>Consumption activity — ' + name + '</h3>' +
+      '<div class="intel-metrics">' +
+        metricRow("Output tokens received as consumer", fmtCompact(m.consuming.outputReceived), "amber", m.consuming.outputReceived) +
+        metricRow("Input tokens sent to servers", fmtCompact(m.consuming.inputSent), "cyan", m.consuming.inputSent) +
+        metricRow("Associated consumption volume", fmtCompact(m.consuming.total), "", m.consuming.total) +
+        metricRow("Serving partners", String(m.consuming.partners)) +
+      '</div>' +
+    '</div>' +
+    '<div class="intel-block">' +
+      '<h3>Partner rankings</h3>' +
+      '<div class="seg" role="group" aria-label="Partner ranking mode" id="partner-seg">' +
+        '<button type="button" data-mode="consumers" aria-pressed="' + (state.partnerMode === "consumers") + '">Consuming</button>' +
+        '<button type="button" data-mode="servers" aria-pressed="' + (state.partnerMode === "servers") + '">Serving</button>' +
+      '</div>' +
+      '<ol id="partner-list"></ol><p class="rank-note" id="partner-note"></p>' +
+    '</div>';
+  renderPartnerList(code, recs);
+}
+function renderInspector(recs) {
+  const key = state.selectedRoute;
+  if (!key) { el("inspector").classList.remove("active"); return; }
+  const v = Agg.routeVolumes(recs).get(key);
+  if (!v) { el("inspector").classList.remove("active"); return; }
+  el("inspector").innerHTML =
+    '<div class="intel-block">' +
+      '<h3>Route inspector</h3>' +
+      '<p class="inspector-route">' + COUNTRY_COORDS[v.origin].name + ' → ' + COUNTRY_COORDS[v.destination].name + '</p>' +
+      '<div class="intel-metrics">' +
+        metricRow("Serving country", v.origin) +
+        metricRow("Consuming country", v.destination) +
+        metricRow("Prompt tokens (consumer → server)", fmtCompact(v.input), "cyan", v.input) +
+        metricRow("Generated tokens (server → consumer)", fmtCompact(v.output), "amber", v.output) +
+        metricRow("Total associated", fmtCompact(v.total), "", v.total) +
+      '</div>' +
+      '<button type="button" class="mini-btn" data-clear-route>Close route ✕</button>' +
+    '</div>';
+  el("inspector").classList.add("active");
+}
+function renderBalance(t) {
+  const pctIn = t.total > 0 ? t.input / t.total * 100 : 0;
+  el("balance").innerHTML =
+    '<div class="intel-block"><h3>Prompt vs completion · ' + periodLabel(PERIODS[state.periodIdx]) + '</h3>' +
+    '<div class="balance-bar"><span class="in" style="width:' + pctIn.toFixed(2) + '%"></span>' +
+    '<span class="out" style="width:' + (100 - pctIn).toFixed(2) + '%"></span></div>' +
+    '<div class="intel-metrics">' +
+      metricRow("Input / prompt", fmtCompact(t.input) + " · " + fmtPct(pctIn), "cyan", t.input) +
+      metricRow("Output / generated", fmtCompact(t.output) + " · " + fmtPct(100 - pctIn), "amber", t.output) +
+    '</div><p class="rank-note">Synthetic demonstration values, not measured traffic.</p></div>';
+  el("balance").classList.add("active");
+}
+function refreshUI() {
+  const period = PERIODS[state.periodIdx];
+  const recs = Agg.recordsFor(period);
+  const t = Agg.totals(recs);
+  const activeCodes = new Set();
+  for (const r of recs) { activeCodes.add(r.origin); activeCodes.add(r.destination); }
+  setStat("stat-total", fmtCompact(t.total), fmtExact(t.total) + " tokens · synthetic demonstration");
+  setStat("stat-input", fmtCompact(t.input), fmtExact(t.input) + " tokens · consumer to server");
+  setStat("stat-output", fmtCompact(t.output), fmtExact(t.output) + " tokens · server to consumer");
+  setStat("stat-routes", String(Agg.routeVolumes(recs).size), "Bilateral relationships in this synthetic period");
+  setStat("stat-countries", String(activeCodes.size), "Countries represented in this synthetic period");
+  setStat("stat-total-sub", "input + output · " + recs.length + " records");
+  el("period-chip").textContent = periodShort(period);
+  el("period-display").innerHTML = periodLabel(period).toUpperCase() + "<small>PERIOD</small>";
+  el("slider").value = String(state.periodIdx);
+  el("ticks").querySelectorAll("span").forEach((n, i) => {
+    n.classList.toggle("current", i === state.periodIdx);
+    n.setAttribute("aria-current", i === state.periodIdx ? "true" : "false");
+  });
+  el("btn-clear").hidden = !state.selectedCountry && !state.selectedRoute;
+  el("btn-spotlight").hidden = !state.selectedCountry;
+  el("country-jump").value = state.selectedCountry || "";
+  el("panel-title").textContent = state.selectedCountry ? COUNTRY_COORDS[state.selectedCountry].name : "Network overview";
+  el("panel-code").textContent = state.selectedCountry || "";
+  el("panel-code").hidden = !state.selectedCountry;
+  if (state.selectedCountry) {
+    renderIntel(state.selectedCountry, recs);
+    el("intel").classList.add("active");
+  } else {
+    el("intel").classList.remove("active");
+    el("intel").innerHTML = "";
+  }
+  renderInspector(recs);
+  renderBalance(t);
+  const rows = Agg.rankings(recs, state.rankMode, 8);
+  const sig = state.rankMode + "|" + period + "|" + rows.map(r => r.code + ":" + r.total).join(",");
+  if (sig !== lastRankSig) {
+    lastRankSig = sig;
+    const max = rows.length ? rows[0].total : 0;
+    el("rank-list").innerHTML = rows.map(r => rankRowHtml(r, max)).join("");
+    el("rank-note").textContent = state.rankMode === "consuming"
+      ? "Top AI consuming destinations · associated synthetic token volume · share of period total"
+      : "Top AI serving countries · associated synthetic token volume · share of period total";
+  }
+  el("rank-consuming").setAttribute("aria-pressed", String(state.rankMode === "consuming"));
+  el("rank-serving").setAttribute("aria-pressed", String(state.rankMode === "serving"));
+  el("tg-input").checked = state.showInput;
+  el("tg-output").checked = state.showOutput;
+  el("tg-routes").checked = state.showRoutes;
+  el("tg-power").checked = state.lowPower;
+  el("btn-play").setAttribute("aria-pressed", String(state.playing));
+  el("btn-play").setAttribute("aria-label", state.playing ? "Pause period playback" : "Play period playback");
+  el("play-icon").innerHTML = state.playing
+    ? '<path d="M3.4 2.4h2.5v9.2H3.4zM8.1 2.4h2.5v9.2H8.1z"/>'
+    : '<path d="M4 2.2v9.6L11.6 7 4 2.2z"/>';
+  el("btn-loop").setAttribute("aria-pressed", String(state.loop));
+  el("btn-rotate").setAttribute("aria-pressed", String(state.autoRotate));
+  el("speed").value = String(state.speed);
+}
+
+/* ---------- 16. TIME EXPLORER ---------- */
+function setPeriod(index, announceChange = true) {
+  if (index < 0 || index >= PERIODS.length || index === state.periodIdx) return;
+  state.periodIdx = index;
+  state.fade = 1;
+  hideTooltip();
+  updateAllocation();
+  refreshUI();
+  if (announceChange) announce("Period " + periodLabel(PERIODS[index]) + ". All statistics and rankings updated.");
+}
+function stepPeriod(delta) { setPeriod(state.periodIdx + delta); }
+function advancePeriod() {
+  if (state.periodIdx + 1 < PERIODS.length) setPeriod(state.periodIdx + 1, false);
+  else if (state.loop) setPeriod(0, false);
+  else { state.playing = false; refreshUI(); announce("Playback finished at " + periodLabel(PERIODS[state.periodIdx]) + "."); }
+}
+function togglePlay() {
+  state.playing = !state.playing;
+  state.lastFrameTs = 0;
+  refreshUI();
+  announce(state.playing ? "Playing demonstration periods." : "Playback paused.");
+}
+function setAutoRotate(on) {
+  state.autoRotate = !!on;
+  if (on) state.motionOverride = true;
+  state.lastInteraction = performance.now();
+  refreshUI();
+  announce(state.autoRotate ? "Automatic globe rotation on." : "Automatic globe rotation off.");
+}
+function toggleMethod(show) {
+  const d = el("methodology");
+  const open = typeof show === "boolean" ? show : !d.open;
+  if (open && !d.open) d.showModal();
+  else if (!open && d.open) d.close();
+  el("btn-info").setAttribute("aria-expanded", String(open));
+}
+
+/* ---------- 17. GUIDED EXPLORATIONS ---------- */
+function dismissStory() {
+  state.story = null;
+  el("story").classList.remove("active");
+}
+function runStory(id) {
+  const last = PERIODS.length - 1;
+  if (id === "india") {
+    if (state.periodIdx !== last) setPeriod(last, false);
+    selectCountry("IND", true);
+    state.story = "india";
+    el("story-title").textContent = "01 — Follow an AI request from India";
+    el("story-text").textContent = "India appears as both serving country and consuming destination in this synthetic network. Use the serving/consumption metrics and partner rankings to see how the same country can play both roles. " + fmtCompact(Agg.countryMetrics("IND", Agg.recordsFor(PERIODS[state.periodIdx])).serving.total) + " associated synthetic tokens involve India as server in " + periodLabel(PERIODS[state.periodIdx]) + ".";
+  } else if (id === "hubs") {
+    if (state.periodIdx !== last) setPeriod(last, false);
+    clearSelections();
+    state.rankMode = "serving";
+    state.story = "hubs";
+    el("story-title").textContent = "02 — Explore the major serving hubs";
+    el("story-text").textContent = "The serving ranking shows where synthetic inference is modelled as being served. These are fictional relationships, not verified data-centre locations.";
+    refreshUI();
+  } else if (id === "consumers") {
+    if (state.periodIdx !== last) setPeriod(last, false);
+    clearSelections();
+    state.rankMode = "consuming";
+    state.story = "consumers";
+    el("story-title").textContent = "03 — Compare leading consumption destinations";
+    el("story-text").textContent = "Ranked by total associated synthetic token volume grouped by consuming country. This is a modelling convention, not a measurement of national AI demand.";
+    refreshUI();
+  } else if (id === "balance") {
+    if (state.periodIdx !== last) setPeriod(last, false);
+    state.story = "balance";
+    el("story-title").textContent = "04 — Prompt vs completion token balance";
+    el("story-text").textContent = "Cyan particles represent prompt tokens travelling consumer → server. Amber particles represent generated tokens travelling server → consumer. Particle size and density encode relative volume under a square-root scale.";
+  }
+  el("story").classList.add("active");
+  announce("Guided exploration started. " + el("story-title").textContent);
+}
+
+/* ---------- 18. GEOGRAPHIC ASSET LOADING & FAILURE HANDLING ---------- */
+const ATLAS_URLS = [
+  "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json",
+  "https://unpkg.com/world-atlas@2.0.2/countries-110m.json"
+];
+async function fetchAtlas() {
+  let lastError = "";
+  for (const url of ATLAS_URLS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error("HTTP " + res.status + " from " + url);
+      const topo = await res.json();
+      if (!topo || !topo.objects || !topo.objects.countries || !Array.isArray(topo.arcs))
+        throw new Error("Unexpected TopoJSON structure from " + url);
+      setupGeography(topo);
+      state.assets.atlas = true;
+      state.baseDirty = true;
+      return true;
+    } catch (err) {
+      clearTimeout(timer);
+      lastError = err && err.name === "AbortError" ? "timed out after 15 seconds" : (err && err.message ? err.message : String(err));
+    }
+  }
+  state.assets.atlas = false;
+  state.geoError = "Country boundaries could not be loaded (" + lastError + "). The globe shows the sphere, graticules, country reference markers, routes and all synthetic statistics, but geographic outline detail is unavailable.";
+  return false;
+}
+const LOAD_NOTICE = "Internet access is required to load the geographic map and rendering libraries.";
+function showNotice(msg) {
+  el("stage-notice").textContent = msg;
+  el("stage-notice").hidden = false;
+  console.warn("[Global AI Observatory] " + msg);
+}
+function showFatal(msg) {
+  state.fatal = true;
+  stopLoop();
+  const l = el("loading");
+  l.hidden = false;
+  l.innerHTML = '<div style="font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;color:var(--output-amber);margin-bottom:12px">OBSERVATORY COULD NOT START</div>' +
+    '<pre style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);white-space:pre-wrap;max-width:540px;text-align:left">' + escapeHtml(msg) + '</pre>' +
+    '<div class="disclaimer" style="border:0;padding:0;margin-top:16px"><span class="dot"></span>Synthetic demo data, not measured international token traffic</div>';
+  ["summary", "panel", "timeline"].forEach(id => { el(id).style.display = "none"; });
+}
+
+/* ---------- 19. DEVELOPMENT VALIDATION ---------- */
+function runValidation() {
+  const failures = [];
+  let checks = 0;
+  const ok = (cond, msg) => { checks++; if (!cond) failures.push(msg); };
+  for (const period of PERIODS) {
+    const recs = Agg.recordsFor(period);
+    const t = Agg.totals(recs);
+    let sumIn = 0, sumOut = 0;
+    for (const r of recs) { sumIn += r.inputTokens; sumOut += r.outputTokens; }
+    ok(t.input === sumIn, period + ": input total does not equal record sum");
+    ok(t.output === sumOut, period + ": output total does not equal record sum");
+    ok(t.total === sumIn + sumOut, period + ": combined total is not input + output");
+    const byOrigin = [...Agg.byOrigin(recs).values()].reduce((a, g) => a + g.total, 0);
+    const byDest = [...Agg.byDestination(recs).values()].reduce((a, g) => a + g.total, 0);
+    ok(byOrigin === t.total, period + ": serving groups do not reconcile");
+    ok(byDest === t.total, period + ": consuming groups do not reconcile");
+    const ranks = Agg.rankings(recs, "consuming");
+    ok(ranks.reduce((a, r) => a + r.total, 0) === t.total, period + ": consuming ranking does not reconcile");
+    const servingRanks = Agg.rankings(recs, "serving");
+    ok(servingRanks.reduce((a, r) => a + r.total, 0) === t.total, period + ": serving ranking does not reconcile");
+    for (const r of ranks) {
+      const m = Agg.countryMetrics(r.code, recs);
+      ok(m.consuming.total === r.total, period + ": partner metrics disagree for " + r.code);
+    }
+    // Particle allocation from the same filtered route volumes as the renderer.
+    const rv = Agg.routeVolumes(recs);
+    const streams = [];
+    for (const [key, v] of rv) {
+      if (v.input > 0) streams.push({ key: key + "|in", volume: v.input });
+      if (v.output > 0) streams.push({ key: key + "|out", volume: v.output });
+    }
+    const counts = allocateParticles(streams, CFG.particleBudget);
+    let used = 0;
+    for (const n of counts.values()) used += n;
+    ok(used <= CFG.particleBudget, period + ": particle budget exceeded (" + used + ")");
+    const low = allocateParticles(streams, CFG.particleBudgetLow);
+    let lowUsed = 0;
+    for (const n of low.values()) lowUsed += n;
+    ok(lowUsed <= CFG.particleBudgetLow, period + ": low-power particle budget exceeded");
+    const maxV = streams.reduce((m, s) => Math.max(m, s.volume), 0);
+    for (const s of streams) {
+      const radius = particleRadius(s.volume, maxV);
+      ok(radius >= CFG.radiusMin && radius <= CFG.radiusMax, period + ": particle radius outside documented clamp");
+      break;
+    }
+  }
+  const report = { pass: failures.length === 0, checks, failures };
+  if (failures.length) console.error("[Global AI Observatory] validation failures:", failures);
+  else console.info("[Global AI Observatory] numeric validation passed: " + checks + " checks across " + PERIODS.length + " periods.");
+  return report;
+}
+
+/* ---------- 20. UI WIRING ---------- */
+function buildCountryJump() {
+  const sel = el("country-jump");
+  const codes = Object.keys(COUNTRY_COORDS).sort((a, b) => COUNTRY_COORDS[a].name.localeCompare(COUNTRY_COORDS[b].name));
+  sel.innerHTML = '<option value="">Select a country…</option>' +
+    codes.map(c => '<option value="' + c + '">' + COUNTRY_COORDS[c].name + ' (' + c + ')</option>').join("");
+}
+function buildTicks() {
+  const box = el("ticks");
+  box.innerHTML = "";
+  PERIODS.forEach((p, i) => {
+    const n = document.createElement("span");
+    n.textContent = periodShort(p);
+    n.setAttribute("role", "button");
+    n.tabIndex = 0;
+    n.setAttribute("aria-label", "Go to period " + periodLabel(p));
+    n.addEventListener("click", () => setPeriod(i));
+    n.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPeriod(i); } });
+    box.appendChild(n);
+  });
+}
+function wireUI() {
+  el("btn-info").addEventListener("click", () => toggleMethod());
+  el("method-close").addEventListener("click", () => toggleMethod(false));
+  el("methodology").addEventListener("close", () => el("btn-info").setAttribute("aria-expanded", "false"));
+  el("btn-rotate").addEventListener("click", () => setAutoRotate(!state.autoRotate));
+  el("tg-input").addEventListener("change", e => { state.showInput = e.target.checked; updateAllocation(); refreshUI(); });
+  el("tg-output").addEventListener("change", e => { state.showOutput = e.target.checked; updateAllocation(); refreshUI(); });
+  el("tg-routes").addEventListener("change", e => { state.showRoutes = e.target.checked; refreshUI(); });
+  el("tg-power").addEventListener("change", e => { state.lowPower = e.target.checked; resize(); updateAllocation(); refreshUI(); });
+  el("country-jump").addEventListener("change", e => { if (e.target.value) selectCountry(e.target.value); });
+  el("btn-clear").addEventListener("click", () => { clearSelections(); state.rankMode = "consuming"; refreshUI(); });
+  el("btn-spotlight").addEventListener("click", () => { const c = COUNTRY_COORDS[state.selectedCountry]; if (c) { state.motionOverride = true; spotlightTo(c.lon, c.lat); } });
+  el("rank-consuming").addEventListener("click", () => { state.rankMode = "consuming"; refreshUI(); });
+  el("rank-serving").addEventListener("click", () => { state.rankMode = "serving"; refreshUI(); });
+  el("intel").addEventListener("click", e => {
+    const seg = e.target.closest && e.target.closest("[data-mode]");
+    if (seg && state.selectedCountry) { state.partnerMode = seg.getAttribute("data-mode"); renderIntel(state.selectedCountry, Agg.recordsFor(PERIODS[state.periodIdx])); return; }
+    const row = e.target.closest && e.target.closest(".rank-row[data-code]");
+    if (row) selectCountry(row.getAttribute("data-code"));
+  });
+  el("rank-list").addEventListener("click", e => {
+    const row = e.target.closest && e.target.closest(".rank-row[data-code]");
+    if (row) selectCountry(row.getAttribute("data-code"));
+  });
+  el("inspector").addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-clear-route]")) clearSelections(); });
+  el("stories").addEventListener("click", e => { const chip = e.target.closest && e.target.closest("[data-story]"); if (chip) runStory(chip.getAttribute("data-story")); });
+  el("story-close").addEventListener("click", dismissStory);
+  el("btn-prev").addEventListener("click", () => stepPeriod(-1));
+  el("btn-next").addEventListener("click", () => stepPeriod(1));
+  el("btn-play").addEventListener("click", togglePlay);
+  el("speed").addEventListener("change", e => { state.speed = parseFloat(e.target.value) || 1; });
+  el("btn-loop").addEventListener("click", () => { state.loop = !state.loop; refreshUI(); });
+  el("slider").addEventListener("input", e => setPeriod(parseInt(e.target.value, 10)));
+  window.addEventListener("resize", () => { resize(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopLoop();
+    else if (!state.fatal && state.ready) startLoop();
+  });
+  canvas.addEventListener("pointermove", e => { lastClient = { x: e.clientX, y: e.clientY }; });
+}
+
+/* ---------- 21. TEST / DEVELOPMENT API ----------
+   Read-only-ish introspection for automated checks and console debugging.
+   Not used by the application itself. */
+window.__observatory = {
+  FLOWS, COUNTRY_COORDS, Agg, Geo, ROUTES,
+  periods: () => PERIODS.slice(),
+  state: () => state,
+  view: () => view,
+  rotation: () => state.rotation.slice(),
+  setRotation: r => { state.rotation = [r[0], r[1]]; state.baseDirty = true; },
+  volumes: () => Object.fromEntries(currentVolumes()),
+  particleCount: () => particlePool.reduce((n, p) => n + (p.active ? 1 : 0), 0),
+  particleBudget: CFG.particleBudget,
+  allocation: () => Object.fromEntries(allocation),
+  assets: () => Object.assign({}, state.assets),
+  rafActive: () => rafId !== null,
+  visibleAt: (lon, lat) => Geo.visible(Geo.toVec(lon, lat), state.rotation),
+  project: (lon, lat) => Geo.project([lon, lat], state.rotation, view.scale, view.cx, view.cy),
+  selectCountry, selectRoute, clearSelections, setPeriod, stepPeriod, togglePlay, runStory,
+  validate: runValidation
+};
+window.__OBSERVATORY_TEST__ = window.__observatory;
+
+/* Dynamic CDN loader: pinned versions, one mirror each, hard timeout.
+   No bundler or server is needed — these are ordinary script tags. */
+function loadScript(urls, ready) {
+  return new Promise(resolve => {
+    const queue = urls.slice();
+    const next = () => {
+      if (ready()) { resolve(true); return; }
+      if (!queue.length) { resolve(false); return; }
+      const s = document.createElement("script");
+      s.src = queue.shift();
+      s.async = false;
+      let settled = false;
+      const timer = setTimeout(() => finish(false), 12000);
+      const finish = ok => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        s.onload = null; s.onerror = null;
+        if (!ok && s.parentNode) s.parentNode.removeChild(s);
+        if (ok && ready()) resolve(true); else next();
+      };
+      s.onload = () => finish(true);
+      s.onerror = () => finish(false);
+      document.head.appendChild(s);
+    };
+    next();
+  });
+}
+const D3_URLS = [
+  "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+  "https://unpkg.com/d3@7.9.0/dist/d3.min.js"
+];
+const TOPOJSON_URLS = [
+  "https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js",
+  "https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
+];
+
+/* ---------- 22. BOOT ---------- */
+async function boot() {
+  const errors = validateDataset();
+  if (errors.length) { showFatal("The embedded FLOWS dataset is malformed. No records were silently discarded.\n\n" + errors.join("\n")); return; }
+  PERIODS = Agg.periods();
+  state.periodIdx = PERIODS.length - 1;
+  const rmQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  state.reducedMotion = rmQuery.matches;
+  state.autoRotate = !state.reducedMotion;
+  el("btn-rotate").setAttribute("aria-pressed", String(state.autoRotate));
+  const onRmChange = e => {
+    state.reducedMotion = e.matches;
+    if (e.matches && !state.motionOverride) { state.autoRotate = false; el("btn-rotate").setAttribute("aria-pressed", "false"); }
+  };
+  if (rmQuery.addEventListener) rmQuery.addEventListener("change", onRmChange);
+  else if (rmQuery.addListener) rmQuery.addListener(onRmChange);
+  buildCountryJump();
+  buildTicks();
+  wireUI();
+  el("slider").max = String(PERIODS.length - 1);
+  el("slider").value = String(state.periodIdx);
+  const fail = new URLSearchParams(location.search).get("fail");
+  if (fail !== "d3" && fail !== "all") {
+    await loadScript(D3_URLS, () => !!window.d3);
+    await loadScript(TOPOJSON_URLS, () => !!window.topojson);
+  }
+  state.assets.d3 = !!window.d3 && fail !== "d3" && fail !== "all";
+  state.assets.topojson = !!window.topojson && state.assets.d3;
+  if (!state.assets.d3) {
+    showNotice(LOAD_NOTICE + " D3.js could not be loaded; a static native-Canvas globe is shown with reference markers only.");
+  } else if (!state.assets.topojson) {
+    showNotice(LOAD_NOTICE + " topojson-client could not be loaded; geographic boundaries are unavailable.");
+  }
+  resize();
+  updateAllocation();
+  refreshUI();
+  if (state.assets.d3 && state.assets.topojson) {
+    const status = el("loading").querySelector("div:last-child");
+    if (status) status.textContent = "LOADING COUNTRY GEOMETRY…";
+    if (fail === "atlas") {
+      state.assets.atlas = false;
+      state.geoError = "Map asset load was disabled by the ?fail=atlas developer flag; the sphere, graticules, country markers and all synthetic statistics remain available, but country boundaries are not shown.";
+      showNotice(state.geoError);
+    } else {
+      await fetchAtlas();
+      if (!state.assets.atlas) showNotice(state.geoError);
+    }
+  }
+  const report = runValidation();
+  state.validation = report;
+  let dot = el("validation-dot");
+  if (!dot) { dot = document.createElement("span"); dot.id = "validation-dot"; dot.className = "dot"; el("meta-line").appendChild(dot); }
+  dot.classList.add(report.pass ? "ok" : "fail");
+  dot.title = report.pass
+    ? "Internal numeric validation passed (" + report.checks + " checks). All aggregates reconcile with FLOWS."
+    : "VALIDATION FAILURES: " + report.failures.join("; ");
+  el("loading").hidden = true;
+  resize();
+  state.baseDirty = true;
+  state.ready = true;
+  startLoop();
+}
+boot().catch(err => showFatal("Startup error: " + (err && err.message ? err.message : String(err))));
+</script>
+</body>
+</html>
