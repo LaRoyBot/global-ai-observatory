@@ -225,8 +225,13 @@ input[type=range]{accent-color:var(--input-cyan);width:100%}
 
 /* ---------- flows workspace ---------- */
 .flows-layout{display:grid;grid-template-columns:minmax(0,1fr) 344px;gap:14px;align-items:start}
-.flows-stage{position:relative;height:min(66vh,660px);min-height:380px;background:radial-gradient(circle at 50% 45%,#0B1420 0%,#070B13 72%);
-  border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.flows-stage{position:relative;height:min(66vh,660px);min-height:380px;background:radial-gradient(circle at 50% 45%,#0A1322 0%,#05080F 78%);
+  border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;overflow:hidden}
+.flows-stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;
+  background:radial-gradient(circle at 50% 46%,transparent 54%,rgba(3,6,11,.45) 100%)}
+.instrument-strip{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;color:var(--text-muted);
+  padding:7px 12px;border:1px solid var(--border);border-top:0;border-radius:0 0 var(--radius) var(--radius);
+  background:rgba(9,14,23,.72);text-transform:uppercase;white-space:nowrap;overflow-x:auto}
 .flows-side{display:flex;flex-direction:column;gap:12px;max-height:min(66vh,660px);overflow-y:auto;padding-right:2px}
 .legend{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text-secondary)}
 .legend-row{display:flex;align-items:center;gap:8px}

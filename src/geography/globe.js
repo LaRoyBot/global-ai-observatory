@@ -15,6 +15,7 @@
 // reference points, and backside geometry is genuinely clipped, not masked.
 import { COUNTRY_COORDS as DEFAULT_COORDS, ISO_NUMERIC, SG_SUPPLEMENT } from "./country-reference.js";
 import { periodLabel, periodShort, fmtCompact, fmtExact, fmtPct, escapeHtml } from "../shared/formatting.js";
+import { createEarthRenderer, subsolarPoint } from "./earth-texture.js";
 
 const DEFAULT_D3_URLS = [
   "/vendor/d3.min.js",
@@ -449,6 +450,14 @@ export function createGlobe(container, opts = {}) {
   const ctx = canvas.getContext("2d");
   const baseCanvas = document.createElement("canvas");
   const bctx = baseCanvas.getContext("2d");
+  // Realistic Earth layer (NASA textures + real solar terminator). Falls back
+  // to the vector globe when textures fail, low-power is on, or ?earth=0.
+  let earth = null;
+  let activeEarthCanvas = null;
+  let lastEarthDrawMs = 0;
+  let lastEarthRot = [NaN, NaN];
+  const EARTH_DISABLED = new URLSearchParams(location.search).get("earth") === "0";
+  function earthActive() { return !!(earth && !state.lowPower && !choroplethLayer && !EARTH_DISABLED); }
   const view = { w: 0, h: 0, dpr: 1, scale: 100, cx: 0, cy: 0 };
   let countryFeatures = new Map();   // ISO alpha-3 -> GeoJSON feature
   let allFeatures = [];
@@ -466,6 +475,7 @@ export function createGlobe(container, opts = {}) {
     canvas.width = Math.round(w * view.dpr); canvas.height = Math.round(h * view.dpr);
     baseCanvas.width = canvas.width; baseCanvas.height = canvas.height;
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    if (earth) earth.configure(view.scale, view.dpr);
     state.baseDirty = true;
   }
 
@@ -542,23 +552,39 @@ export function createGlobe(container, opts = {}) {
     halo.addColorStop(1, "rgba(63,154,224,0)");
     bctx.fillStyle = halo;
     bctx.beginPath(); bctx.arc(cx, cy, scale * 1.09, 0, Math.PI * 2); bctx.fill();
-    // Ocean sphere with controlled lighting.
-    const ocean = bctx.createRadialGradient(cx - scale * 0.3, cy - scale * 0.35, scale * 0.1, cx, cy, scale);
-    ocean.addColorStop(0, "#152538");
-    ocean.addColorStop(1, "#0E1927");
-    bctx.fillStyle = ocean;
-    bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2); bctx.fill();
+    const realistic = earthActive();
+    if (!realistic) {
+      // Ocean sphere with controlled lighting (vector mode).
+      const ocean = bctx.createRadialGradient(cx - scale * 0.3, cy - scale * 0.35, scale * 0.1, cx, cy, scale);
+      ocean.addColorStop(0, "#152538");
+      ocean.addColorStop(1, "#0E1927");
+      bctx.fillStyle = ocean;
+      bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2); bctx.fill();
+    } else {
+      // Thin atmospheric limb over the photographic sphere.
+      const rim = bctx.createRadialGradient(cx, cy, scale * 0.88, cx, cy, scale);
+      rim.addColorStop(0, "rgba(110,170,235,0)");
+      rim.addColorStop(0.82, "rgba(110,170,235,0.05)");
+      rim.addColorStop(1, "rgba(140,195,255,0.16)");
+      bctx.fillStyle = rim;
+      bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2); bctx.fill();
+    }
 
     if (window.d3) {
       d3Projection = window.d3.geoOrthographic()
         .rotate(state.rotation).scale(scale).translate([cx, cy]).precision(0.4);
       const path = window.d3.geoPath(d3Projection, bctx);
-      // Graticule
-      bctx.beginPath(); path(window.d3.geoGraticule10());
-      bctx.strokeStyle = CFG.colors.graticule; bctx.lineWidth = 0.5; bctx.stroke();
+      // Graticule — vector mode only; the photographic Earth needs no grid.
+      if (!realistic) {
+        bctx.beginPath(); path(window.d3.geoGraticule10());
+        bctx.strokeStyle = CFG.colors.graticule; bctx.lineWidth = 0.5; bctx.stroke();
+      }
       if (state.assets.atlas && allFeatures.length) {
         // Country fills — batched, or per-feature when a choropleth layer is active.
-        if (choroplethLayer && choroplethLayer.values) {
+        // In realistic mode the texture IS the surface; fills would hide it.
+        if (realistic) {
+          /* no fills */
+        } else if (choroplethLayer && choroplethLayer.values) {
           for (const f of allFeatures) {
             const iso = f.properties && f.properties.iso;
             const val = iso != null ? choroplethLayer.values[iso] : undefined;
@@ -574,14 +600,15 @@ export function createGlobe(container, opts = {}) {
         // Borders
         if (borderMesh) {
           bctx.beginPath(); path(borderMesh);
-          bctx.strokeStyle = "rgba(87,112,132,0.55)"; bctx.lineWidth = 0.6; bctx.stroke();
+          bctx.strokeStyle = realistic ? "rgba(150,180,210,0.14)" : "rgba(87,112,132,0.55)";
+          bctx.lineWidth = realistic ? 0.5 : 0.6; bctx.stroke();
         }
         // Selected country highlight
         if (state.selectedCountry) {
           const f = countryFeatures.get(state.selectedCountry);
           if (f) {
             bctx.beginPath(); path(f);
-            bctx.fillStyle = "#1D3348"; bctx.fill();
+            bctx.fillStyle = realistic ? "rgba(192,232,255,0.07)" : "#1D3348"; bctx.fill();
             bctx.beginPath(); path(f);
             bctx.strokeStyle = "rgba(192,232,255,0.18)"; bctx.lineWidth = 4; bctx.stroke();
             bctx.beginPath(); path(f);
@@ -650,10 +677,11 @@ export function createGlobe(container, opts = {}) {
       const effTotal = (prev ? prev.total : 0) + ((cur ? cur.total : 0) - (prev ? prev.total : 0)) * fadeF;
       if (effTotal <= 0) continue;
       const focus = routeFocus(key);
-      let alpha = (0.10 + 0.16 * Math.sqrt(effTotal / maxTotal)) * focus;
-      let color = CFG.colors.route, width = 1;
+      let alpha = ((earthActive() ? 0.16 : 0.10) + (earthActive() ? 0.22 : 0.16) * Math.sqrt(effTotal / maxTotal)) * focus;
+      let color = earthActive() ? "120,182,232" : CFG.colors.route, width = 1;
       if (state.hoverRoute === key) { alpha = Math.max(alpha, 0.55); color = "159,196,224"; width = 1.4; }
       if (state.selectedRoute === key) { alpha = 0.75; color = "159,196,224"; width = 1.5; }
+      if (earthActive()) alpha = Math.min(alpha, 0.45);
       if (alpha < 0.015) continue;
       strokeGeoLine(ctx, route.samples, "rgba(" + color + "," + alpha.toFixed(3) + ")", width);
       // Endpoint markers for inspected routes.
@@ -719,7 +747,7 @@ export function createGlobe(container, opts = {}) {
 
   function drawParticles() {
     ctx.save();
-    ctx.globalCompositeOperation = "lighter";
+    ctx.globalCompositeOperation = earthActive() ? "screen" : "lighter";
     const rot = state.rotation, sc = view.scale, cx = view.cx, cy = view.cy;
     const center = Geo.centerVec(rot);
     const tails = !state.lowPower;
@@ -805,6 +833,19 @@ export function createGlobe(container, opts = {}) {
     if (state.baseDirty || rotMoved || state.dragging) rebuildBase();
 
     ctx.clearRect(0, 0, view.w, view.h);
+    if (earthActive()) {
+      const moved = Math.abs(state.rotation[0] - lastEarthRot[0]) > 0.04 ||
+                    Math.abs(state.rotation[1] - lastEarthRot[1]) > 0.04;
+      const sunTick = ts - lastEarthDrawMs > 1000;
+      if (!activeEarthCanvas || moved || state.dragging || sunTick) {
+        activeEarthCanvas = earth.render(state.rotation[0], state.rotation[1], Date.now());
+        lastEarthDrawMs = ts;
+        lastEarthRot = [state.rotation[0], state.rotation[1]];
+      }
+      if (activeEarthCanvas) {
+        ctx.drawImage(activeEarthCanvas, view.cx - view.scale, view.cy - view.scale, view.scale * 2, view.scale * 2);
+      }
+    }
     ctx.drawImage(baseCanvas, 0, 0, view.w, view.h);
     drawRoutes(ts);
     drawParticles();
@@ -1265,6 +1306,17 @@ export function createGlobe(container, opts = {}) {
     else if (rmQuery.addListener) rmQuery.addListener(onRmChange);
     resize();
     updateAllocation();
+    if (opts.earth !== false && !EARTH_DISABLED) {
+      createEarthRenderer().then(r => {
+        earth = r;
+        earth.configure(view.scale, view.dpr);
+        activeEarthCanvas = null;
+        state.baseDirty = true;
+        emitChange();
+      }).catch(err => {
+        console.warn("[globe] photographic Earth unavailable; vector globe retained.", err.message);
+      });
+    }
     const fail = opts.fail || new URLSearchParams(location.search).get("fail");
     if (fail !== "d3" && fail !== "all") {
       await loadScript(opts.d3Urls || DEFAULT_D3_URLS, () => !!window.d3);
@@ -1311,6 +1363,7 @@ export function createGlobe(container, opts = {}) {
       else if (rmQuery.removeListener) rmQuery.removeListener(onRmChange);
     }
     if (onVisibility) document.removeEventListener("visibilitychange", onVisibility);
+    earth = null; activeEarthCanvas = null;
     listeners.clear();
     rootEl.innerHTML = "";
     mounted = false;
@@ -1322,6 +1375,7 @@ export function createGlobe(container, opts = {}) {
     on, off, emit,
     getSnapshot: snapshot,
     getState: () => state,
+    getEarth: () => ({ active: earthActive(), subsolar: subsolarPoint(Date.now()), textureSize: earth ? earth.size : 0 }),
     agg: Agg, geo: Geo, routes: ROUTES, routeByKey: ROUTE_BY_KEY, cfg: CFG,
     periods: () => PERIODS.slice(),
     setFlows(flows) {

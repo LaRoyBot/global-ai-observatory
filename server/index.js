@@ -22,11 +22,13 @@ function resolveStatic(pathname) {
   if (clean.includes("..")) return null;
   if (clean === "/" || clean === "/index.html") return path.join(ROOT, "public", "index.html");
   if (clean === "/legacy" || clean === "/legacy/index.html") return path.join(ROOT, "index.html");
-  const prefixes = ["/src/", "/vendor/", "/data/reference/", "/data/synthetic/", "/docs/", "/public/"];
+  const prefixes = ["/src/", "/vendor/", "/textures/", "/data/reference/", "/data/synthetic/", "/docs/", "/public/"];
   const hit = prefixes.find(p => clean.startsWith(p));
   if (!hit) return null;
-  const rel = hit === "/public/" ? clean.slice("/public".length) : clean;
-  const base = hit === "/vendor/" ? path.join(ROOT, "public", "vendor") : ROOT;
+  const rel = hit === "/public/" ? clean.slice("/public".length)
+    : (hit === "/vendor/" || hit === "/textures/") ? clean.slice(hit.length - 1) : clean;
+  const base = hit === "/vendor/" ? path.join(ROOT, "public", "vendor")
+    : hit === "/textures/" ? path.join(ROOT, "public", "textures") : ROOT;
   const file = path.join(base, rel);
   if (!file.startsWith(base)) return null;
   return file;

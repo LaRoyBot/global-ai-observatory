@@ -44,6 +44,7 @@ export async function mount(ctx) {
     '<div id="flows-stats"></div>' +
     '<div class="flows-layout">' +
       '<div><div class="flows-stage" id="flows-stage"></div>' +
+        '<div class="instrument-strip" id="flows-instruments" aria-hidden="true"></div>' +
         '<div class="timeline" id="flows-timeline">' +
           '<div class="transport">' +
             '<button class="btn icon" id="tl-prev" aria-label="Previous period" title="Previous period (←)">‹</button>' +
@@ -69,6 +70,7 @@ export async function mount(ctx) {
           '<div class="legend-row"><span class="dot out"></span>Output / generated tokens travelling to the consumer</div>' +
           '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:var(--selected-blue)"></span>Particle size & density: relative volume (square-root scale, ≤150 particles)</div>' +
           '<div class="legend-row"><span class="ring"></span>Highlighted boundary: selected country</div>' +
+          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#33587A,#0A1220)"></span>Basemap: NASA Blue Marble + Black Marble (public domain) · day/night boundary computed from the real solar position</div>' +
         "</div></div></div>" +
       "</div>" +
       '<div class="flows-side" id="flows-side"></div>' +
@@ -272,6 +274,36 @@ export async function mount(ctx) {
   }
   if (mode === "flat") mountFlat(); else mountGlobe();
 
+  // ---- instrument readouts (live rotation, UTC, real subsolar point, fps) ----
+  let instrTimer = null;
+  function startInstruments() {
+    const el = document.getElementById("flows-instruments");
+    if (!el) return;
+    let lastFrames = 0, lastTs = performance.now();
+    const fmtDeg = (v, pos, neg) => Math.abs(v).toFixed(1).padStart(5, "0") + "\u00B0" + (v >= 0 ? pos : neg);
+    const tick = () => {
+      if (!globe) { el.textContent = "FLAT MAP MODE \u00B7 PARTICLE ENGINE OFFLINE"; return; }
+      const st = globe.getState();
+      const e = globe.getEarth();
+      const now = performance.now();
+      const fps = Math.max(0, Math.round((st.frames - lastFrames) / Math.max(0.001, (now - lastTs) / 1000)));
+      lastFrames = st.frames; lastTs = now;
+      const lon = ((-st.rotation[0] % 360) + 540) % 360 - 180;
+      const lat = Math.max(-90, Math.min(90, -st.rotation[1]));
+      const utc = new Date().toISOString().slice(11, 19);
+      const ss = e.subsolar;
+      el.textContent =
+        "VIEW " + fmtDeg(lon, "E", "W") + " " + fmtDeg(lat, "N", "S") +
+        "  \u00B7  UTC " + utc +
+        "  \u00B7  SUBSOLAR " + fmtDeg(ss[0], "E", "W") + " " + fmtDeg(ss[1], "N", "S") +
+        "  \u00B7  " + (e.active ? "PHOTO\u00B7SOLAR " + e.textureSize + "PX" : "VECTOR") +
+        "  \u00B7  " + globe.particleCount() + " PTCL  \u00B7  " + fps + " FPS";
+    };
+    tick();
+    instrTimer = setInterval(tick, 500);
+  }
+  startInstruments();
+
   // ---- controls ----
   const $ = id => document.getElementById(id);
   $("tl-prev").addEventListener("click", () => globe && globe.stepPeriod(-1));
@@ -345,6 +377,7 @@ export async function mount(ctx) {
 
   return {
     destroy() {
+      if (instrTimer) clearInterval(instrTimer);
       document.removeEventListener("keydown", onKey);
       if (globe) globe.destroy();
       if (flat) flat.destroy();
