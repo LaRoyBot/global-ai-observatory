@@ -287,7 +287,7 @@ kbd{font-family:var(--font-mono);font-size:9.5px;border:1px solid var(--border-s
   .nav-item .nav-text{display:block;font-size:9px;letter-spacing:.02em}
   .nav-item .nav-badge{display:none}
   #main{overflow:visible}
-  .workspace{padding:14px 13px 30px}
+  .workspace{padding:14px 13px 84px}
   .topbar-meta{display:none}
   .disclaimer{font-size:10px;padding:3px 8px}
   .brand-title{font-size:12px}

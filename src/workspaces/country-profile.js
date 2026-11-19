@@ -113,7 +113,7 @@ export async function mount(ctx) {
     title: "7 · Research & talent", tools: ui.evidenceBadge("reported"),
     body: (labs.length ? '<div class="subhead">Research labs</div>' + ui.table({ columns: [{ key: "name", label: "Lab" }, { key: "city", label: "City" }, { key: "status", label: "Status", render: r => ui.statusBadge(r.status) }], rows: labs }) : "") +
       (research.length ? '<div class="subhead">Research signals</div><ul class="feed-list">' + research.slice(0, 6).map(i => '<li class="feed-item"><a class="feed-headline" href="' + ui.h(i.source_url) + '" target="_blank" rel="noopener noreferrer">' + ui.h(i.headline) + '</a><div class="feed-meta">' + ui.h(i.source_name || "") + " · " + ui.h(String(i.published_at || "").slice(0, 10)) + "</div></li>").join("") + "</ul>"
-        : ui.emptyState("No country-linked research", "No research signals are attributed to this country in the current feed. arXiv metadata does not reliably carry author affiliation countries."),
+        : ui.emptyState("No country-linked research", "No research signals are attributed to this country in the current feed. arXiv metadata does not reliably carry author affiliation countries.")),
   }));
   /* 8 investment & policy */
   const inv = intel.filter(i => ["infrastructure_investment", "policy_regulation", "provider_announcement", "industry"].includes(i.kind));
