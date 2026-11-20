@@ -30,7 +30,7 @@ export async function mount(ctx) {
   if (countriesRes.ok) for (const c of countriesRes.data) if (!coords[c.iso3]) coords[c.iso3] = { name: c.name, lon: c.lon, lat: c.lat };
 
   main.innerHTML =
-    '<div class="workspace" data-screen-label="flows">' +
+    '<div class="workspace flows-workspace" data-screen-label="flows">' +
     ui.workspaceHeader({
       title: "AI Token Flows",
       sub: "Conceptual bilateral relationships between serving and consuming countries. origin = serving country, destination = consuming country. Input (prompt) tokens travel consumer → server; output (generated) tokens travel server → consumer.",

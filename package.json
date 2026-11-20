@@ -13,7 +13,7 @@
     "migrate": "node server/jobs/migrate.js",
     "seed": "node server/jobs/seed.js",
     "ingest": "node server/jobs/ingest.js",
-    "test": "node --test tests/",
+    "test": "node --test",
     "test:unit": "node --test tests/unit/",
     "test:integration": "node --test tests/integration/",
     "test:data": "node --test tests/data-integrity/",

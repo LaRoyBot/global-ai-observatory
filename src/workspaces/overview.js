@@ -36,7 +36,7 @@ function loadLayout() {
 
 export async function mount(ctx) {
   const main = document.getElementById("main");
-  main.innerHTML = '<div class="workspace" data-screen-label="overview">' +
+  main.innerHTML = '<div class="workspace overview-workspace" data-screen-label="overview"><div class="overview-hero">' +
     ui.workspaceHeader({
       title: "Global AI Observatory",
       sub: "A modular intelligence platform for the world's AI economy. Token flows are a synthetic demonstration; infrastructure, models, pricing, adoption and research are sourced public records with explicit provenance.",
@@ -44,43 +44,47 @@ export async function mount(ctx) {
       context: '<div class="disclaimer"><span class="dot"></span>' + DISCLAIMER + "</div>"
     }) +
     '<div id="ov-stats">' + ui.loadingBlock("Loading coverage…") + "</div>" +
-    '<div class="ov-grid"><section class="ov-stage">' +
+    '<div class="ov-grid"><section class="ov-stage overview-map">' +
       '<div class="stage-head"><span class="stage-title">Geographic intelligence engine</span><span class="stage-actions">' +
         '<button class="btn sm" id="ov-mode" type="button">Flat map</button>' +
         '<button class="btn sm" id="ov-rotate" type="button" aria-pressed="true">Auto-rotate</button>' +
         '<button class="btn sm" id="ov-power" type="button" aria-pressed="' + state.lowPower + '">Low power</button>' +
       "</span></div>" +
       '<div class="layer-catalogue" id="ov-layers"></div>' +
-      '<div id="ov-geo" style="position:relative;height:420px"></div>' +
-      '<div class="stage-foot"><span class="disclaimer" style="font-size:11px"><span class="dot"></span>' + DISCLAIMER + '</span><span class="stage-note" id="ov-note"></span></div>' +
+      '<div id="ov-geo" class="ov-map-canvas" style="position:relative"></div>' +
+      '<div class="stage-foot"><span class="stage-note" id="ov-note"></span></div>' +
     '</section><aside class="ov-inspect" id="ov-inspect"></aside></div>' +
+    '<div class="ov-hero-foot"><span class="disclaimer"><span class="dot"></span>' + DISCLAIMER + '</span>' +
+      '<span class="mono-note">GREEN · prompt → server &nbsp; AMBER · generated → consumer · streams encode relative volume</span></div>' +
+    '</div>' +
     '<div class="panel-layout-bar"><span class="panel-title" style="border:0;padding:0">Intelligence panels</span>' +
       '<span class="mono-note">show / hide · reorder · saved to your preferences</span>' +
       '<button class="btn sm" id="ov-reset" type="button">Reset layout</button></div>' +
     '<div class="ov-panels" id="ov-panels"></div></div>';
 
-  const [ovR, flowsR, countriesR, infraR, modelsR, providersR] = await Promise.all([
-    apiGet("/overview"), apiGet("/flows?all=1", { ttlMs: 60000 }), apiGet("/countries", { ttlMs: 300000 }),
-    apiGet("/infrastructure"), apiGet("/models", { ttlMs: 60000 }), apiGet("/providers", { ttlMs: 60000 }),
+  // Globe 2.0: only flows + coordinates are critical. Everything else loads
+  // after the globe is mounted, so slow research/pricing calls cannot block it.
+  const [flowsR, countriesR] = await Promise.all([
+    apiGet("/flows?all=1", { ttlMs: 60000 }), apiGet("/countries", { ttlMs: 300000 })
   ]);
-  const ov = ovR.ok ? ovR.data : null;
+  let ov = null, ovError = null, infra = { sites: [], regions: [] }, models = [], providers = [];
   const coords = Object.assign({}, COUNTRY_COORDS);
   const countryRows = countriesR.ok ? countriesR.data : [];
   for (const c of countryRows) if (!coords[c.iso3]) coords[c.iso3] = { name: c.name, lon: c.lon, lat: c.lat };
-  const infra = infraR.ok ? infraR.data : { sites: [], regions: [] };
-  const models = modelsR.ok ? modelsR.data : [];
-  const providers = providersR.ok ? providersR.data : [];
 
-  /* coverage statistics */
-  const cov = ov && ov.coverage;
-  document.getElementById("ov-stats").innerHTML = cov ? ui.statRow([
+  /* coverage statistics — loading/unavailable states never masquerade as zeros */
+  function renderStats() {
+    const cov = ov && ov.coverage;
+    document.getElementById("ov-stats").innerHTML = cov ? ui.statRow([
     { label: "Token observations", value: fmtExact(cov.flow_records), sub: cov.flow_periods + " demo periods · synthetic", tone: "estimated", exact: cov.flow_records, unit: "records" },
     { label: "Countries referenced", value: String(cov.countries), sub: "canonical reference layer" },
     { label: "Providers", value: String(cov.providers), sub: "curated registry", tone: "amber" },
     { label: "Models catalogued", value: String(cov.models), sub: cov.models_with_pricing + " with pricing", tone: "green" },
     { label: "Infrastructure sites", value: String(cov.infrastructure_sites), sub: cov.cloud_regions + " cloud regions", tone: "estimated" },
     { label: "Research signals", value: String(cov.intelligence_signals), sub: cov.adoption_observations + " adoption obs.", tone: "amber" },
-  ]) : ui.errorState(ovR.error, "ov-retry");
+  ]) : ov ? ui.errorState("Coverage summary unavailable", "ov-retry") : ui.loadingBlock("Loading coverage…");
+  }
+  renderStats();
 
   /* layer catalogue (shared geographic state) */
   const LAYERS = [
@@ -177,9 +181,9 @@ export async function mount(ctx) {
   /* eight intelligence panels */
   let layout = loadLayout();
   const modelCountByProvider = {};
-  for (const m of models) modelCountByProvider[m.provider_id] = (modelCountByProvider[m.provider_id] || 0) + 1;
+  function refreshModelCounts() { for (const m of models) modelCountByProvider[m.provider_id] = (modelCountByProvider[m.provider_id] || 0) + 1; }
   function panelBody(id) {
-    if (!ov) return ui.errorState(ovR.error, "ov-retry");
+    if (!ov) return ovError ? ui.errorState(ovError, "ov-retry") : ui.loadingBlock("Loading intelligence panels…");
     switch (id) {
       case "regions": {
         const rows = (ov.infrastructure.regions_by_country || []).slice(0, 8);
@@ -287,6 +291,20 @@ export async function mount(ctx) {
   document.getElementById("ov-mode").textContent = mode === "globe" ? "Flat map" : "Globe";
   renderLayers(); renderPanels();
   await mountGeo();
+
+  // Noncritical intelligence loads independently; failures show real error states.
+  void (async () => {
+    const res = await Promise.allSettled([
+      apiGet("/overview"), apiGet("/infrastructure"), apiGet("/models", { ttlMs: 60000 }), apiGet("/providers", { ttlMs: 60000 })
+    ]);
+    const [a, b, c, d] = res.map(x => x.status === "fulfilled" ? x.value : { ok: false, error: String(x.reason) });
+    if (a.ok) ov = a.data; else ovError = a.error;
+    if (b.ok) infra = b.data; else console.warn("[overview] infrastructure unavailable", b.error);
+    if (c.ok) models = c.data; else console.warn("[overview] models unavailable", c.error);
+    if (d.ok) providers = d.data; else console.warn("[overview] providers unavailable", d.error);
+    refreshModelCounts(); renderStats(); renderPanels(); applyLayers();
+    if (state.selectedCountry) renderInspect(state.selectedCountry);
+  })();
 
   return { destroy() { document.removeEventListener("click", onDocClick); destroyGeo(); } };
 }
