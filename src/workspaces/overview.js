@@ -21,7 +21,7 @@ const PANELS = [
   { id: "adoption", title: "AI adoption observations", href: "/adoption", cls: "reported" },
   { id: "freshness", title: "Data-source freshness", href: "/sources", cls: "reported" },
 ];
-const SITE_COLOR = "#A78BFA", REGION_COLOR = "#FFB56B", LAB_COLOR = "#59C9F5";
+const SITE_COLOR = "#9ca3af", REGION_COLOR = "#ffaa00", LAB_COLOR = "#44ff88";
 
 function defaultLayout() { return PANELS.map((p, i) => ({ id: p.id, visible: true, order: i })); }
 function loadLayout() {
@@ -74,11 +74,11 @@ export async function mount(ctx) {
   /* coverage statistics */
   const cov = ov && ov.coverage;
   document.getElementById("ov-stats").innerHTML = cov ? ui.statRow([
-    { label: "Token observations", value: fmtExact(cov.flow_records), sub: cov.flow_periods + " demo periods · synthetic", tone: "violet", exact: cov.flow_records, unit: "records" },
+    { label: "Token observations", value: fmtExact(cov.flow_records), sub: cov.flow_periods + " demo periods · synthetic", tone: "estimated", exact: cov.flow_records, unit: "records" },
     { label: "Countries referenced", value: String(cov.countries), sub: "canonical reference layer" },
     { label: "Providers", value: String(cov.providers), sub: "curated registry", tone: "amber" },
-    { label: "Models catalogued", value: String(cov.models), sub: cov.models_with_pricing + " with pricing", tone: "cyan" },
-    { label: "Infrastructure sites", value: String(cov.infrastructure_sites), sub: cov.cloud_regions + " cloud regions", tone: "violet" },
+    { label: "Models catalogued", value: String(cov.models), sub: cov.models_with_pricing + " with pricing", tone: "green" },
+    { label: "Infrastructure sites", value: String(cov.infrastructure_sites), sub: cov.cloud_regions + " cloud regions", tone: "estimated" },
     { label: "Research signals", value: String(cov.intelligence_signals), sub: cov.adoption_observations + " adoption obs.", tone: "amber" },
   ]) : ui.errorState(ovR.error, "ov-retry");
 
@@ -190,7 +190,7 @@ export async function mount(ctx) {
       case "providers": {
         const rows = providers.map(p => ({ code: p.slug, name: p.name, total: modelCountByProvider[p.id] || 0 })).filter(r => r.total > 0).sort((a, b) => b.total - a.total).slice(0, 8);
         if (!rows.length) return ui.emptyState("No provider model counts", "Model catalogue ingestion has not run yet.");
-        return ui.rankList(rows, { hrefFn: r => "/providers/" + r.code, barTone: "cyan" }) + ui.note("Models catalogued per provider from public catalogues. Headquarters country is not inference-serving geography.");
+        return ui.rankList(rows, { hrefFn: r => "/providers/" + r.code, barTone: "green" }) + ui.note("Models catalogued per provider from public catalogues. Headquarters country is not inference-serving geography.");
       }
       case "models": {
         const rows = (ov.models.recent || []).slice(0, 8);

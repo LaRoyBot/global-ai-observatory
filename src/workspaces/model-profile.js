@@ -62,7 +62,7 @@ export async function mount(ctx) {
     ui.panel({ title: "Pricing history", span: 2, body: histCats.length ? '<div class="grid-3">' + histCats.map(cat => {
       const points = Object.keys(byCat[cat]).sort().map(dt => ({ label: dt, value: byCat[cat][dt].price }));
       return ui.panel({ title: CAT_LABEL[cat] || cat, body: points.length >= 2
-        ? ui.lineChart(points, { tone: cat === "output" ? "var(--output-amber)" : "var(--input-cyan)", height: 100 })
+        ? ui.lineChart(points, { tone: cat === "output" ? "var(--output-amber)" : "var(--input-green)", height: 100 })
         : ui.emptyState("Not enough history", "One dated observation (" + points[0].label + "). No trend is manufactured.") });
     }).join("") + "</div>" : ui.emptyState("No dated history", "No dated pricing observations for this model yet.") }) +
     ui.panel({ title: "Related research & announcements", span: 2, body: intel.length ? '<ul class="feed-list">' + intel.slice(0, 8).map(i => '<li class="feed-item"><a class="feed-headline" href="' + ui.h(i.source_url) + '" target="_blank" rel="noopener noreferrer">' + ui.h(i.headline) + '</a><div class="feed-meta">' + ui.h(i.source_name || "") + " · published " + ui.h(String(i.published_at || "").slice(0, 10)) + "</div></li>").join("") + "</ul>" : ui.emptyState("No related signals", "No feed items reference this model yet.") }) +

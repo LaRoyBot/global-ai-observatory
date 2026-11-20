@@ -65,11 +65,11 @@ export function createGlobe(container, opts = {}) {
   /* ---------- 1. CONFIGURATION ---------- */
   const CFG = {
     colors: {
-      background:"#070B13", globe:"#101C2B", countryFill:"#16283A",
-      countryOutline:"#577084", textSecondary:"#93A4B7", textMuted:"#607286",
-      input:"#59C9F5", output:"#FFB56B", selection:"#C0E8FF",
-      atmosphere:"rgba(63,154,224,0.14)", route:"122,160,196",
-      graticule:"rgba(147,164,183,0.07)"
+      background:"#0a0a0a", globe:"#020a08", countryFill:"#0a2018",
+      countryOutline:"#0f5040", textSecondary:"#cccccc", textMuted:"#838383",
+      input:"#44ff88", output:"#ffaa00", selection:"#e8e8e8",
+      atmosphere:"rgba(68,255,136,0.14)", route:"42,122,96",
+      graticule:"rgba(10,42,32,0.55)"
     },
     particleBudget: 150,        // hard cap, normal mode
     particleBudgetLow: 75,      // hard cap, low-power mode
@@ -547,25 +547,25 @@ export function createGlobe(container, opts = {}) {
     bctx.clearRect(0, 0, w, h);
     // Atmospheric halo — subtle, never obscures borders.
     const halo = bctx.createRadialGradient(cx, cy, scale * 0.97, cx, cy, scale * 1.09);
-    halo.addColorStop(0, "rgba(63,154,224,0.14)");
-    halo.addColorStop(0.45, "rgba(63,154,224,0.07)");
-    halo.addColorStop(1, "rgba(63,154,224,0)");
+    halo.addColorStop(0, "rgba(68,255,136,0.08)");
+    halo.addColorStop(0.45, "rgba(68,255,136,0.04)");
+    halo.addColorStop(1, "rgba(68,255,136,0)");
     bctx.fillStyle = halo;
     bctx.beginPath(); bctx.arc(cx, cy, scale * 1.09, 0, Math.PI * 2); bctx.fill();
     const realistic = earthActive();
     if (!realistic) {
       // Ocean sphere with controlled lighting (vector mode).
       const ocean = bctx.createRadialGradient(cx - scale * 0.3, cy - scale * 0.35, scale * 0.1, cx, cy, scale);
-      ocean.addColorStop(0, "#152538");
-      ocean.addColorStop(1, "#0E1927");
+      ocean.addColorStop(0, "#0a2018");
+      ocean.addColorStop(1, "#020a08");
       bctx.fillStyle = ocean;
       bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2); bctx.fill();
     } else {
       // Thin atmospheric limb over the photographic sphere.
       const rim = bctx.createRadialGradient(cx, cy, scale * 0.88, cx, cy, scale);
-      rim.addColorStop(0, "rgba(110,170,235,0)");
-      rim.addColorStop(0.82, "rgba(110,170,235,0.05)");
-      rim.addColorStop(1, "rgba(140,195,255,0.16)");
+      rim.addColorStop(0, "rgba(60,160,120,0)");
+      rim.addColorStop(0.82, "rgba(60,160,120,0.05)");
+      rim.addColorStop(1, "rgba(120,220,170,0.16)");
       bctx.fillStyle = rim;
       bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2); bctx.fill();
     }
@@ -600,7 +600,7 @@ export function createGlobe(container, opts = {}) {
         // Borders
         if (borderMesh) {
           bctx.beginPath(); path(borderMesh);
-          bctx.strokeStyle = realistic ? "rgba(150,180,210,0.14)" : "rgba(87,112,132,0.55)";
+          bctx.strokeStyle = realistic ? "rgba(120,200,160,0.14)" : "rgba(15,80,64,0.55)";
           bctx.lineWidth = realistic ? 0.5 : 0.6; bctx.stroke();
         }
         // Selected country highlight
@@ -608,9 +608,9 @@ export function createGlobe(container, opts = {}) {
           const f = countryFeatures.get(state.selectedCountry);
           if (f) {
             bctx.beginPath(); path(f);
-            bctx.fillStyle = realistic ? "rgba(192,232,255,0.07)" : "#1D3348"; bctx.fill();
+            bctx.fillStyle = realistic ? "rgba(232,232,232,0.07)" : "#1e1e1e"; bctx.fill();
             bctx.beginPath(); path(f);
-            bctx.strokeStyle = "rgba(192,232,255,0.18)"; bctx.lineWidth = 4; bctx.stroke();
+            bctx.strokeStyle = "rgba(232,232,232,0.18)"; bctx.lineWidth = 4; bctx.stroke();
             bctx.beginPath(); path(f);
             bctx.strokeStyle = CFG.colors.selection; bctx.lineWidth = 1.3; bctx.stroke();
           }
@@ -619,7 +619,7 @@ export function createGlobe(container, opts = {}) {
     } else {
       // Native-Canvas fallback: sphere outline + manual graticule.
       bctx.beginPath(); bctx.arc(cx, cy, scale, 0, Math.PI * 2);
-      bctx.strokeStyle = "rgba(87,112,132,0.8)"; bctx.lineWidth = 1; bctx.stroke();
+      bctx.strokeStyle = "rgba(15,80,64,0.8)"; bctx.lineWidth = 1; bctx.stroke();
       const grat = [];
       for (let lon = -180; lon < 180; lon += 30) {
         const line = [];
@@ -678,9 +678,9 @@ export function createGlobe(container, opts = {}) {
       if (effTotal <= 0) continue;
       const focus = routeFocus(key);
       let alpha = ((earthActive() ? 0.16 : 0.10) + (earthActive() ? 0.22 : 0.16) * Math.sqrt(effTotal / maxTotal)) * focus;
-      let color = earthActive() ? "120,182,232" : CFG.colors.route, width = 1;
-      if (state.hoverRoute === key) { alpha = Math.max(alpha, 0.55); color = "159,196,224"; width = 1.4; }
-      if (state.selectedRoute === key) { alpha = 0.75; color = "159,196,224"; width = 1.5; }
+      let color = earthActive() ? "80,190,140" : CFG.colors.route, width = 1;
+      if (state.hoverRoute === key) { alpha = Math.max(alpha, 0.55); color = "210,235,220"; width = 1.4; }
+      if (state.selectedRoute === key) { alpha = 0.75; color = "210,235,220"; width = 1.5; }
       if (earthActive()) alpha = Math.min(alpha, 0.45);
       if (alpha < 0.015) continue;
       strokeGeoLine(ctx, route.samples, "rgba(" + color + "," + alpha.toFixed(3) + ")", width);
@@ -690,7 +690,7 @@ export function createGlobe(container, opts = {}) {
           const p = Geo.projectVec(v, state.rotation, view.scale, view.cx, view.cy);
           if (p[2] > 0) {
             ctx.beginPath(); ctx.arc(p[0], p[1], 2.6, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(192,232,255,0.9)"; ctx.fill();
+            ctx.fillStyle = "rgba(232,232,232,0.9)"; ctx.fill();
           }
         }
       }
@@ -758,7 +758,7 @@ export function createGlobe(container, opts = {}) {
       const v = p.route.at(geoT);
       if (Geo.dot(v, center) <= 1e-6) continue; // behind the Earth: hidden immediately
       const pos = Geo.projectVec(v, rot, sc, cx, cy);
-      const rgb = p.dir === "in" ? "89,201,245" : "255,181,107";
+      const rgb = p.dir === "in" ? "68,255,136" : "255,170,0";
       if (tails) {
         const tailAlphas = [0.30, 0.18, 0.09];
         for (let k = 1; k <= 3; k++) {
@@ -788,9 +788,9 @@ export function createGlobe(container, opts = {}) {
       const proj = window.d3.geoOrthographic().rotate(state.rotation).scale(view.scale).translate([view.cx, view.cy]);
       const path = window.d3.geoPath(proj, ctx);
       ctx.beginPath(); path(f);
-      ctx.strokeStyle = "rgba(192,232,255,0.5)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = "rgba(232,232,232,0.5)"; ctx.lineWidth = 1; ctx.stroke();
     } else {
-      drawReferenceRing(ctx, code, "rgba(192,232,255,0.6)", 1);
+      drawReferenceRing(ctx, code, "rgba(232,232,232,0.6)", 1);
     }
   }
 
@@ -1119,7 +1119,7 @@ export function createGlobe(container, opts = {}) {
       if (Geo.dot(v, center) <= 1e-6) continue; // genuine backside occlusion
       const p = Geo.projectVec(v, state.rotation, view.scale, view.cx, view.cy);
       const r = m.radius || 3;
-      const color = m.color || "rgba(192,232,255,0.9)";
+      const color = m.color || "rgba(232,232,232,0.9)";
       if (m.ring) {
         ctx.beginPath(); ctx.arc(p[0], p[1], r + 3, 0, Math.PI * 2);
         ctx.strokeStyle = color; ctx.globalAlpha = 0.45; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;

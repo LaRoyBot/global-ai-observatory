@@ -40,9 +40,9 @@ export async function mount(ctx) {
   const summary = health ? ui.statRow([
     { label: "Database", value: health.database === "ok" ? "OK" : String(health.database), tone: health.database === "ok" ? "" : "amber" },
     { label: "Sources registered", value: String(sources.length) },
-    { label: "Available", value: String(sources.filter(s => s.status === "available").length), tone: "cyan" },
+    { label: "Available", value: String(sources.filter(s => s.status === "available").length), tone: "green" },
     { label: "Never run", value: String(sources.filter(s => !s.last_attempt_at).length), tone: "amber", sub: "configured ≠ healthy" },
-    { label: "Failed / partial", value: String(sources.filter(s => ["failed", "partial", "stale", "degraded"].includes(s.status)).length), tone: "violet" },
+    { label: "Failed / partial", value: String(sources.filter(s => ["failed", "partial", "stale", "degraded"].includes(s.status)).length), tone: "estimated" },
   ]) : "";
 
   const cards = sources.map(s => {

@@ -73,17 +73,17 @@ export async function createEarthRenderer({
     const lum = 0.299 * r + 0.587 * g + 0.114 * b;
     const desat = 0.12;
     day[j]     = (r * (1 - desat) + lum * desat) * 0.95 + 2;
-    day[j + 1] = (g * (1 - desat) + lum * desat) * 0.97 + 3;
-    day[j + 2] = (b * (1 - desat) + lum * desat) * 1.06 + 6;
+    day[j + 1] = (g * (1 - desat) + lum * desat) * 0.97 + 2;
+    day[j + 2] = (b * (1 - desat) + lum * desat) * 1.00 + 2;
   }
   // Pre-bake amber city lights over a near-black night base.
   const night = new Uint8ClampedArray(TW * TH * 3);
   for (let i = 0, j = 0; i < nightRaw.length; i += 4, j += 3) {
     const v = Math.max(nightRaw[i], nightRaw[i + 1], nightRaw[i + 2]);
     const glow = Math.pow(v / 255, 1.35) * 235;
-    night[j]     = 7 + glow * 1.0;
-    night[j + 1] = 11 + glow * 0.72;
-    night[j + 2] = 19 + glow * 0.42;
+    night[j]     = 6 + glow * 1.0;
+    night[j + 1] = 10 + glow * 0.72;
+    night[j + 2] = 8 + glow * 0.42;
   }
   // Ocean mask for subtle sun glint.
   const spec = new Uint8Array(TW * TH);
@@ -180,7 +180,7 @@ export async function createEarthRenderer({
       if (cosSun > 0.55) {
         const c2 = cosSun * cosSun, c6 = c2 * c2 * c2;
         const glint = spec[rowOf[k] + col] * c6 * 0.10;
-        r += glint; g += glint; b += glint * 1.15;
+        r += glint; g += glint; b += glint;
       }
       const lm = limb[k];
       const o = idx[k];

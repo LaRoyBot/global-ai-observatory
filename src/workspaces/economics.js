@@ -52,7 +52,7 @@ export async function mount(ctx) {
   const latest = observations.reduce((a, o) => (o.retrieved_at && o.retrieved_at > a ? o.retrieved_at : a), "");
   document.getElementById("ec-coverage").innerHTML = ui.statRow([
     { label: "Models with pricing", value: String(data.coverage.models), sub: "catalogued observations" },
-    { label: "Pricing observations", value: fmtExact(data.coverage.observations), tone: "cyan", exact: data.coverage.observations },
+    { label: "Pricing observations", value: fmtExact(data.coverage.observations), tone: "green", exact: data.coverage.observations },
     { label: "Providers", value: String(data.coverage.providers), tone: "amber" },
     { label: "Latest retrieval", value: latest ? latest.slice(0, 10) : "—", sub: latest ? fmtDateTime(latest) : "no observations" },
   ]) + ui.note(data.normalization);
@@ -91,7 +91,7 @@ export async function mount(ctx) {
         (r.ok
           ? '<div class="calc-result">' + money(r.total) + "</div>" +
             ui.kv([
-              ["Input cost", r.inCost == null ? "no pricing observation" : money(r.inCost), "cyan"],
+              ["Input cost", r.inCost == null ? "no pricing observation" : money(r.inCost), "green"],
               ["Output cost", r.outCost == null ? "no pricing observation" : money(r.outCost), "amber"],
             ]) +
             (r.partial ? ui.note("Partial estimate: one category has no published price. Missing prices are never treated as zero.") : "") +
@@ -165,7 +165,7 @@ export async function mount(ctx) {
         title: slug + " · " + (CAT_LABEL[cat] || cat),
         tools: ui.evidenceBadge(byCat[cat][Object.keys(byCat[cat]).sort().pop()].evidence_class),
         body: points.length >= 2
-          ? ui.lineChart(points, { tone: cat === "output" ? "var(--output-amber)" : "var(--input-cyan)", height: 110 }) +
+          ? ui.lineChart(points, { tone: cat === "output" ? "var(--output-amber)" : "var(--input-green)", height: 110 }) +
             ui.table({ columns: [{ key: "label", label: "Date" }, { key: "value", label: "USD / M", numeric: true, render: r => money(r.value) }], rows: points })
           : ui.emptyState("Not enough history", "A trend requires at least two dated observations. Only one is recorded (" + points[0].label + "); no fluctuation is invented."),
       });

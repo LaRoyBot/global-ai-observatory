@@ -57,7 +57,7 @@ export async function mount(ctx) {
           '<button class="btn sm" id="tl-loop" aria-pressed="true" title="Loop playback">Loop</button>' +
         "</div>" +
         '<div class="toolbar" style="margin-top:12px">' +
-          '<button class="chip" id="tg-in" aria-pressed="true"><span class="swatch" style="background:var(--input-cyan)"></span>Input / prompt</button>' +
+          '<button class="chip" id="tg-in" aria-pressed="true"><span class="swatch" style="background:var(--input-green)"></span>Input / prompt</button>' +
           '<button class="chip" id="tg-out" aria-pressed="true"><span class="swatch" style="background:var(--output-amber)"></span>Output / generated</button>' +
           '<button class="chip" id="tg-routes" aria-pressed="true">Route lines</button>' +
           '<button class="chip" id="tg-power" aria-pressed="false">Low power</button>' +
@@ -68,9 +68,9 @@ export async function mount(ctx) {
         '<div class="panel" style="margin-top:12px"><div class="panel-head"><h3 class="panel-title">Legend</h3></div><div class="panel-body"><div class="legend">' +
           '<div class="legend-row"><span class="dot in"></span>Input / prompt tokens travelling to the serving location</div>' +
           '<div class="legend-row"><span class="dot out"></span>Output / generated tokens travelling to the consumer</div>' +
-          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:var(--selected-blue)"></span>Particle size & density: relative volume (square-root scale, ≤150 particles)</div>' +
+          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:var(--accent)"></span>Particle size & density: relative volume (square-root scale, ≤150 particles)</div>' +
           '<div class="legend-row"><span class="ring"></span>Highlighted boundary: selected country</div>' +
-          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#33587A,#0A1220)"></span>Basemap: NASA Blue Marble + Black Marble (public domain) · day/night boundary computed from the real solar position</div>' +
+          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#3a5a40,#0a0a0a)"></span>Basemap: NASA Blue Marble + Black Marble (public domain) · day/night boundary computed from the real solar position</div>' +
         "</div></div></div>" +
       "</div>" +
       '<div class="flows-side" id="flows-side"></div>' +
@@ -104,14 +104,14 @@ export async function mount(ctx) {
         body: '<div class="section-title" style="margin-top:0">Serving activity</div>' +
           ui.kv([
             ["Output tokens served to others", fmtCompact(m.serving.outputServed), "amber", fmtExact(m.serving.outputServed) + " tokens"],
-            ["Input tokens received as server", fmtCompact(m.serving.inputReceived), "cyan", fmtExact(m.serving.inputReceived) + " tokens"],
+            ["Input tokens received as server", fmtCompact(m.serving.inputReceived), "green", fmtExact(m.serving.inputReceived) + " tokens"],
             ["Associated serving volume", fmtCompact(m.serving.total), "", fmtExact(m.serving.total) + " tokens"],
             ["Consuming partners", String(m.serving.partners)]
           ]) +
           '<div class="section-title">Consumption activity</div>' +
           ui.kv([
             ["Output tokens received as consumer", fmtCompact(m.consuming.outputReceived), "amber", fmtExact(m.consuming.outputReceived) + " tokens"],
-            ["Input tokens sent to servers", fmtCompact(m.consuming.inputSent), "cyan", fmtExact(m.consuming.inputSent) + " tokens"],
+            ["Input tokens sent to servers", fmtCompact(m.consuming.inputSent), "green", fmtExact(m.consuming.inputSent) + " tokens"],
             ["Associated consumption volume", fmtCompact(m.consuming.total), "", fmtExact(m.consuming.total) + " tokens"],
             ["Serving partners", String(m.consuming.partners)]
           ]) +
@@ -125,10 +125,10 @@ export async function mount(ctx) {
       if (v) html += ui.panel({
         title: "Route inspector",
         tools: '<button class="btn sm ghost" id="btn-clear-route">Close</button>',
-        body: '<p class="mono" style="font-size:12px;color:var(--selected-blue);margin:0 0 8px">' + ui.h((coords[v.origin] || {}).name || v.origin) + " → " + ui.h((coords[v.destination] || {}).name || v.destination) + "</p>" +
+        body: '<p class="mono" style="font-size:12px;color:var(--accent);margin:0 0 8px">' + ui.h((coords[v.origin] || {}).name || v.origin) + " → " + ui.h((coords[v.destination] || {}).name || v.destination) + "</p>" +
           ui.kv([
             ["Serving country", v.origin], ["Consuming country", v.destination],
-            ["Prompt tokens (consumer → server)", fmtCompact(v.input), "cyan", fmtExact(v.input) + " tokens"],
+            ["Prompt tokens (consumer → server)", fmtCompact(v.input), "green", fmtExact(v.input) + " tokens"],
             ["Generated tokens (server → consumer)", fmtCompact(v.output), "amber", fmtExact(v.output) + " tokens"],
             ["Total associated", fmtCompact(v.total), "", fmtExact(v.total) + " tokens"]
           ]) + ui.note("Synthetic demonstration relationship, not measured traffic.")
@@ -140,7 +140,7 @@ export async function mount(ctx) {
       tools: ui.tabs([{ id: "consuming", label: "Consuming" }, { id: "serving", label: "Serving" }], lastRankMode, "data-rank"),
       body: '<p class="note" style="margin:0 0 8px">' + (lastRankMode === "consuming" ? "Top AI consuming destinations" : "Top AI serving countries") +
         " · associated synthetic token volume · share of period total</p>" +
-        ui.rankList(rows.map(r => Object.assign({}, r, { name: (coords[r.code] || {}).name || r.code })), { hrefFn: r => "/countries/" + r.code, barTone: lastRankMode === "consuming" ? "cyan" : "amber" })
+        ui.rankList(rows.map(r => Object.assign({}, r, { name: (coords[r.code] || {}).name || r.code })), { hrefFn: r => "/countries/" + r.code, barTone: lastRankMode === "consuming" ? "green" : "amber" })
     });
     if (agg) {
       const t = agg.totals(recs);
@@ -148,7 +148,7 @@ export async function mount(ctx) {
       html += ui.panel({
         title: "Prompt vs completion",
         body: ui.splitBar(share) + ui.kv([
-          ["Input / prompt", fmtCompact(t.input) + " · " + fmtPct(share * 100), "cyan", fmtExact(t.input) + " tokens"],
+          ["Input / prompt", fmtCompact(t.input) + " · " + fmtPct(share * 100), "green", fmtExact(t.input) + " tokens"],
           ["Output / generated", fmtCompact(t.output) + " · " + fmtPct((1 - share) * 100), "amber", fmtExact(t.output) + " tokens"]
         ]) + ui.note("Period " + periodLabel(snap.period) + ". Synthetic demonstration values.")
       });
@@ -187,7 +187,7 @@ export async function mount(ctx) {
   function renderStats(snap) {
     document.getElementById("flows-stats").innerHTML = ui.statRow([
       { label: "Total associated", value: fmtCompact(snap.totals.total), exact: snap.totals.total, unit: "tokens", sub: "input + output · " + snap.recordCount + " records" },
-      { label: "Input · prompt", value: fmtCompact(snap.totals.input), tone: "cyan", exact: snap.totals.input, unit: "tokens", sub: "consumer → server" },
+      { label: "Input · prompt", value: fmtCompact(snap.totals.input), tone: "green", exact: snap.totals.input, unit: "tokens", sub: "consumer → server" },
       { label: "Output · generated", value: fmtCompact(snap.totals.output), tone: "amber", exact: snap.totals.output, unit: "tokens", sub: "server → consumer" },
       { label: "Active routes", value: String(snap.routeCount), sub: "bilateral pairs" },
       { label: "Countries", value: String(snap.countryCount), sub: "serving + consuming" },
@@ -345,7 +345,7 @@ export async function mount(ctx) {
     { id: "india", title: "01 — Follow an AI request from India", text: "India appears as both serving country and consuming destination in this synthetic network. Select India to compare its serving and consumption metrics and partner rankings." },
     { id: "hubs", title: "02 — Explore the major serving hubs", text: "Switch the ranking to Serving to see where synthetic inference is modelled as being served. These are fictional relationships, not verified data-centre locations." },
     { id: "consumers", title: "03 — Compare leading consumption destinations", text: "Ranked by total associated synthetic token volume grouped by consuming country — a modelling convention, not a measurement of national AI demand." },
-    { id: "balance", title: "04 — Prompt vs completion token balance", text: "Cyan particles are prompt tokens travelling consumer → server; amber particles are generated tokens travelling server → consumer. Size and density encode relative volume under a square-root scale." }
+    { id: "balance", title: "04 — Prompt vs completion token balance", text: "Green particles are prompt tokens travelling consumer → server; amber particles are generated tokens travelling server → consumer. Size and density encode relative volume under a square-root scale." }
   ];
   $("flows-stories").innerHTML = ui.panel({
     title: "Guided explorations · synthetic data", span: 3,

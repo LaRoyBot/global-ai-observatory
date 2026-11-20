@@ -10,7 +10,7 @@ import { createFlatMap } from "../geography/flatmap.js";
 import { loadCountryFeatures, whenGeoReady } from "../geography/atlas.js";
 import { COUNTRY_COORDS } from "../geography/country-reference.js";
 
-// Sequential scale built from existing tokens: country fill -> input cyan.
+// Sequential scale built from existing tokens: country fill -> input green.
 function scaleColor(t) {
   const a = [22, 40, 58], b = [89, 201, 245];
   const c = a.map((x, i) => Math.round(x + (b[i] - x) * Math.max(0, Math.min(1, t))));
@@ -159,7 +159,7 @@ export async function mount(ctx) {
     document.getElementById("ad-rank-note").textContent = rows.length + " countries · " + period + " · " + (metric() ? metric().name : "");
     document.getElementById("ad-rank").innerHTML = rows.length ? ui.panel({
       title: "Ranked by observed value", tools: ui.evidenceBadge("reported"),
-      body: ui.rankList(rows.map((r, i) => ({ rank: i + 1, code: r.country_iso3, name: nameOf(r.country_iso3), total: r.value, share: null })), { hrefFn: r => "/countries/" + r.code, barTone: "cyan", valueKey: "total" }) +
+      body: ui.rankList(rows.map((r, i) => ({ rank: i + 1, code: r.country_iso3, name: nameOf(r.country_iso3), total: r.value, share: null })), { hrefFn: r => "/countries/" + r.code, barTone: "green", valueKey: "total" }) +
         ui.note(data.warning || "Different survey methodologies are never merged into one unqualified global ranking."),
     }) : ui.emptyState("No observations for this selection", "Try a different metric, period or region. Missing data is a coverage gap, not zero.");
   }
@@ -168,7 +168,7 @@ export async function mount(ctx) {
     const cov = data.coverage || { countries_covered: 0, countries_total: 0, gaps: [] };
     const gaps = (cov.gaps || []).slice(0, 60);
     document.getElementById("ad-coverage").innerHTML = ui.statRow([
-      { label: "Countries covered", value: String(cov.countries_covered), sub: "any metric / period", tone: "cyan" },
+      { label: "Countries covered", value: String(cov.countries_covered), sub: "any metric / period", tone: "green" },
       { label: "Countries in reference", value: String(cov.countries_total) },
       { label: "Coverage gaps", value: String((cov.gaps || []).length), tone: "amber", sub: "no observation" },
       { label: "Observations", value: String(observations.length), sub: metrics.length + " metrics" },

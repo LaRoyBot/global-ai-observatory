@@ -28,7 +28,7 @@ export function createFlatMap(container, { countries = {}, onSelect = null } = {
   function draw() {
     if (destroyed) return;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#0B1420";
+    ctx.fillStyle = "#071009";
     ctx.fillRect(0, 0, w, h);
     if (!window.d3 || !projection) {
       notice.hidden = false;
@@ -36,15 +36,15 @@ export function createFlatMap(container, { countries = {}, onSelect = null } = {
       return;
     }
     ctx.beginPath(); path({ type: "Sphere" });
-    ctx.fillStyle = "#101C2B"; ctx.fill();
+    ctx.fillStyle = "#020a08"; ctx.fill();
     ctx.beginPath(); path(window.d3.geoGraticule10());
-    ctx.strokeStyle = "rgba(87,112,132,0.18)"; ctx.lineWidth = 0.4; ctx.stroke();
+    ctx.strokeStyle = "rgba(15,80,64,0.18)"; ctx.lineWidth = 0.4; ctx.stroke();
     for (const f of features) {
       const iso = f.properties && f.properties.iso;
       ctx.beginPath(); path(f);
       if (choropleth && iso && choropleth[iso] != null) { ctx.fillStyle = choropleth[iso]; ctx.fill(); }
-      else { ctx.fillStyle = "#16283A"; ctx.fill(); }
-      ctx.strokeStyle = iso === state.selectedCountry ? "rgba(192,232,255,0.95)" : "rgba(87,112,132,0.5)";
+      else { ctx.fillStyle = "#0a2018"; ctx.fill(); }
+      ctx.strokeStyle = iso === state.selectedCountry ? "rgba(232,232,232,0.95)" : "rgba(15,80,64,0.5)";
       ctx.lineWidth = iso === state.selectedCountry ? 1.4 : 0.5;
       ctx.stroke();
     }
@@ -53,7 +53,7 @@ export function createFlatMap(container, { countries = {}, onSelect = null } = {
       const p = projection([m.lon, m.lat]);
       if (!p) continue;
       ctx.beginPath(); ctx.arc(p[0], p[1], m.radius || 3, 0, Math.PI * 2);
-      ctx.fillStyle = m.color || "rgba(192,232,255,0.9)"; ctx.fill();
+      ctx.fillStyle = m.color || "rgba(232,232,232,0.9)"; ctx.fill();
     }
   }
   function onClick(e) {

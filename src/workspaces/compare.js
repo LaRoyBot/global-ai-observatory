@@ -96,7 +96,7 @@ export async function mount(ctx) {
       ["Provider", item.provider ? item.provider.name : "—"],
       ["Released", m.release_date ? String(m.release_date).slice(0, 10) : "not documented"],
       ["Context window", m.context_window ? m.context_window.toLocaleString() : "not documented"],
-      ["Input price (USD/M)", inO ? money(inO.price) : "no pricing observation", "cyan"],
+      ["Input price (USD/M)", inO ? money(inO.price) : "no pricing observation", "green"],
       ["Output price (USD/M)", outO ? money(outO.price) : "no pricing observation", "amber"],
     ]) +
     (incompatible ? ui.note("Some observations use incompatible units and are excluded from comparison rather than converted.") : "") +

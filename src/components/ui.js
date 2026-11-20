@@ -93,7 +93,7 @@ export function tabs(items, activeId, attr = "data-tab") {
 }
 
 // Lightweight inline SVG charts — no chart library, no per-frame cost.
-export function barChart(series, { width = 320, height = 90, tone = "var(--selected-blue)", labelKey = "label", valueKey = "value" } = {}) {
+export function barChart(series, { width = 320, height = 90, tone = "var(--accent)", labelKey = "label", valueKey = "value" } = {}) {
   if (!series || !series.length) return emptyState("No series", "No observations available for this chart.");
   const max = Math.max(...series.map(s => s[valueKey] || 0), 1);
   const bw = width / series.length;
@@ -107,7 +107,7 @@ export function barChart(series, { width = 320, height = 90, tone = "var(--selec
   return '<svg viewBox="0 0 ' + width + " " + height + '" width="100%" height="' + height + '" role="img" aria-label="Bar chart">' + bars + "</svg>";
 }
 
-export function lineChart(points, { width = 320, height = 96, tone = "var(--input-cyan)", valueKey = "value", labelKey = "label" } = {}) {
+export function lineChart(points, { width = 320, height = 96, tone = "var(--input-green)", valueKey = "value", labelKey = "label" } = {}) {
   if (!points || points.length < 2) return emptyState("Not enough history", "A trend requires at least two dated observations. No history is manufactured.");
   const vals = points.map(p => p[valueKey] || 0);
   const min = Math.min(...vals), max = Math.max(...vals);

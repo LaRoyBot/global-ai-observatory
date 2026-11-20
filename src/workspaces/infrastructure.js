@@ -11,7 +11,7 @@ import { loadCountryFeatures, whenGeoReady } from "../geography/atlas.js";
 import { COUNTRY_COORDS } from "../geography/country-reference.js";
 import { fmtDateTime } from "../shared/formatting.js";
 
-const SITE_COLOR = "#A78BFA", REGION_COLOR = "#FFB56B", LAB_COLOR = "#59C9F5", CLUSTER_COLOR = "#C0E8FF";
+const SITE_COLOR = "#9ca3af", REGION_COLOR = "#ffaa00", LAB_COLOR = "#44ff88", CLUSTER_COLOR = "#e8e8e8";
 const FACILITY_LABEL = { ai_datacentre: "AI datacentre", datacentre: "Datacentre", research_lab: "Research lab", cloud_region: "Cloud region", corporate_hq: "Corporate HQ", semiconductor_fab: "Semiconductor fab" };
 
 export async function mount(ctx) {

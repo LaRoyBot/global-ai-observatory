@@ -43,7 +43,7 @@ export async function mount(ctx) {
       body: '<div class="grid-3">' + cats.map(cat => {
         const points = Object.keys(byCat[cat]).sort().map(dt => ({ label: dt, value: byCat[cat][dt].price }));
         return ui.panel({ title: CAT_LABEL[cat] || cat, body: points.length >= 2
-          ? ui.lineChart(points, { tone: cat === "output" ? "var(--output-amber)" : "var(--input-cyan)", height: 100 })
+          ? ui.lineChart(points, { tone: cat === "output" ? "var(--output-amber)" : "var(--input-green)", height: 100 })
           : ui.emptyState("Not enough history", "One dated observation (" + points[0].label + "). A trend needs at least two; none is invented.") });
       }).join("") + "</div>" });
   }
