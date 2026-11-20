@@ -73,6 +73,7 @@ export function createGlobe(container, opts = {}) {
     },
     particleBudget: 150,        // hard cap, normal mode
     particleBudgetLow: 75,      // hard cap, low-power mode
+    laneOffsetDeg: 0.9,         // spherical separation of input/output lanes
     radiusBase: 1, radiusGain: 2.2, radiusMin: 1, radiusMax: 3.2,
     dprCap: 2, dprCapLow: 1,
     autoRotateDegPerSec: 0.9,
@@ -271,7 +272,7 @@ export function createGlobe(container, opts = {}) {
     const counts = new Map();
     if (!streams.length || budget <= 0) return counts;
     const weighted = streams
-      .map(s => ({ key: s.key, volume: s.volume, w: Math.sqrt(s.volume) }))
+      .map(s => ({ key: s.key, volume: s.volume, w: Math.pow(s.volume, VOL.allocationExp) }))
       .sort((a, b) => b.w - a.w || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     const n = weighted.length;
     if (budget < n) {
@@ -299,6 +300,27 @@ export function createGlobe(container, opts = {}) {
     const r = CFG.radiusBase + CFG.radiusGain * Math.sqrt(volume / maxVolume);
     return Math.min(CFG.radiusMax, Math.max(CFG.radiusMin, r));
   }
+  /* ---------- 6b. FLOW ENCODING 2.0 ----------
+     All volume encodings are deterministic nonlinear functions of the
+     canonical monthly token volume. Speed is intentionally volume-INDEPENDENT:
+     a monthly aggregate is not a packet rate. Density, width and luminosity
+     carry magnitude; motion only makes direction legible.
+       corridor width = 0.55 + (3.4 - 0.55) * sqrt(v / max)
+       corridor glow  = 0.025 + 0.07 * sqrt(v / max)
+       lane alpha     = 0.10 + 0.24 * sqrt(v / max)   (capped at 0.55)
+       particle count = largest-remainder allocation with weight v^0.72
+       particle radius= clamp(1 + 2.2 * sqrt(v / max), 1, 3.2) px
+       micro-dots     = round(4 + 10 * sqrt(v / max)) per carrier gap,
+                        spacing = 1 / carrier-count (continuous granular trains)
+     Particle count is NOT proportional to token count: each is a carrier in an
+     illustrative encoding of relative volume, never an individual token. */
+  const VOL = Object.freeze({
+    allocationExp: 0.72, minWidth: 0.55, maxWidth: 3.4,
+    width(v, max) { return this.minWidth + (this.maxWidth - this.minWidth) * Math.sqrt(max > 0 ? Math.max(0, v / max) : 0); },
+    glowAlpha(v, max) { return 0.025 + 0.07 * Math.sqrt(max > 0 ? Math.max(0, v / max) : 0); },
+    laneAlpha(v, max) { return Math.min(0.55, 0.10 + 0.24 * Math.sqrt(max > 0 ? Math.max(0, v / max) : 0)); },
+    trainLength(v, max) { return Math.round(4 + 10 * Math.sqrt(max > 0 ? Math.max(0, v / max) : 0)); }
+  });
 
 
   /* ---------- 7. GEOGRAPHIC MATH, VISIBILITY & ROUTES ----------
@@ -390,12 +412,35 @@ export function createGlobe(container, opts = {}) {
       const steps = Math.max(24, Math.ceil((distRad / Geo.DEG) / 1.2));
       const samples = [];
       for (let i = 0; i <= steps; i++) samples.push(Geo.slerp(a, b, i / steps));
+      /* Directional lanes are spherical: rotate every great-circle sample
+         around the route normal by +/- laneOffsetDeg with a sin(pi*t) taper.
+         The lanes converge exactly at both geographic endpoints, are clipped
+         by the same horizon test as the centre line, and never bend in screen
+         space. Rodrigues rotation keeps every sample on the unit sphere. */
+      const cr = Geo.cross(a, b);
+      const axis = Math.hypot(cr[0], cr[1], cr[2]) < 1e-8
+        ? Geo.norm(Geo.cross(a, Math.abs(a[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0])) : Geo.norm(cr);
+      const laneRad = CFG.laneOffsetDeg * Geo.DEG;
+      function lane(v, t, sign) {
+        const ang = sign * laneRad * Math.pow(Math.sin(Math.PI * t), 0.6);
+        if (Math.abs(ang) < 1e-9) return v;
+        const c = Math.cos(ang), s = Math.sin(ang), cv = Geo.cross(axis, v), d = Geo.dot(axis, v), k = 1 - c;
+        return Geo.norm([
+          v[0] * c + cv[0] * s + axis[0] * d * k,
+          v[1] * c + cv[1] * s + axis[1] * d * k,
+          v[2] * c + cv[2] * s + axis[2] * d * k
+        ]);
+      }
+      const samplesIn = samples.map((v, i) => lane(v, i / steps, -1));
+      const samplesOut = samples.map((v, i) => lane(v, i / steps, 1));
       routes.push({
         key, origin: p.origin, destination: p.destination,
-        a, b, distRad, distDeg: distRad / Geo.DEG, samples,
-        // t in [0,1] along origin->destination. Input particles run 1-t.
+        a, b, distRad, distDeg: distRad / Geo.DEG, samples, samplesIn, samplesOut,
+        // t in [0,1] along origin->destination. Input runs 1-t on its own lane.
         at: t => Geo.slerp(a, b, t),
-        durationMs: (distRad / Geo.DEG) / 14 * 1000 // ~14°/s angular speed
+        atIn: t => lane(Geo.slerp(a, b, t), t, -1),
+        atOut: t => lane(Geo.slerp(a, b, t), t, 1),
+        durationMs: (distRad / Geo.DEG) / 14 * 1000 // ~14°/s angular speed, volume-independent
       });
     }
     return routes;
@@ -660,38 +705,51 @@ export function createGlobe(container, opts = {}) {
     if (!state.showRoutes) return;
     const vols = currentVolumes();
     let fadeF = 1;
-    if (state.fade && !(state.fade.prev instanceof Map)) state.fade = null; // defensive: malformed payload
+    if (state.fade && !(state.fade.prev instanceof Map)) state.fade = null;
     if (state.fade) {
       fadeF = Math.min(1, (now - state.fade.t0) / CFG.crossfadeMs);
-      fadeF = fadeF * fadeF * (3 - 2 * fadeF); // smoothstep
+      fadeF = fadeF * fadeF * (3 - 2 * fadeF);
       if (fadeF >= 1) state.fade = null;
     }
     const keys = new Set(vols.keys());
     if (state.fade) for (const k of state.fade.prev.keys()) keys.add(k);
-    let maxTotal = 1;
-    for (const v of vols.values()) maxTotal = Math.max(maxTotal, v.total);
+    let maxTotal = 1, maxIn = 1, maxOut = 1;
+    for (const v of vols.values()) {
+      maxTotal = Math.max(maxTotal, v.total); maxIn = Math.max(maxIn, v.input); maxOut = Math.max(maxOut, v.output);
+    }
     for (const key of keys) {
       const route = ROUTE_BY_KEY.get(key);
       if (!route) continue;
       const cur = vols.get(key), prev = state.fade ? state.fade.prev.get(key) : null;
-      const effTotal = (prev ? prev.total : 0) + ((cur ? cur.total : 0) - (prev ? prev.total : 0)) * fadeF;
+      const mix = f => (prev ? (prev[f] || 0) : 0) + ((cur ? (cur[f] || 0) : 0) - (prev ? (prev[f] || 0) : 0)) * fadeF;
+      const effTotal = mix("total"), effIn = mix("input"), effOut = mix("output");
       if (effTotal <= 0) continue;
       const focus = routeFocus(key);
-      let alpha = ((earthActive() ? 0.16 : 0.10) + (earthActive() ? 0.22 : 0.16) * Math.sqrt(effTotal / maxTotal)) * focus;
-      let color = earthActive() ? "80,190,140" : CFG.colors.route, width = 1;
-      if (state.hoverRoute === key) { alpha = Math.max(alpha, 0.55); color = "210,235,220"; width = 1.4; }
-      if (state.selectedRoute === key) { alpha = 0.75; color = "210,235,220"; width = 1.5; }
-      if (earthActive()) alpha = Math.min(alpha, 0.45);
-      if (alpha < 0.015) continue;
-      strokeGeoLine(ctx, route.samples, "rgba(" + color + "," + alpha.toFixed(3) + ")", width);
-      // Endpoint markers for inspected routes.
-      if (state.hoverRoute === key || state.selectedRoute === key) {
-        for (const v of [route.a, route.b]) {
-          const p = Geo.projectVec(v, state.rotation, view.scale, view.cx, view.cy);
-          if (p[2] > 0) {
-            ctx.beginPath(); ctx.arc(p[0], p[1], 2.6, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(232,232,232,0.9)"; ctx.fill();
-          }
+      const intensity = Math.sqrt(effTotal / maxTotal);
+      const width = VOL.width(effTotal, maxTotal);
+      const inspected = state.hoverRoute === key || state.selectedRoute === key;
+      const glowColor = earthActive() ? "80,190,140" : CFG.colors.route;
+      // Volume-sensitive outer corridor. Glow is optional quality work only;
+      // the core lanes and geography are always drawn.
+      if (quality.glow) {
+        const ga = (VOL.glowAlpha(effTotal, maxTotal) + (inspected ? 0.05 : 0)) * focus;
+        if (ga >= 0.012) strokeGeoLine(ctx, route.samples, "rgba(" + glowColor + "," + ga.toFixed(3) + ")", width * 3.2);
+      }
+      // Two parallel geographic lanes: green consumer->server, amber server->consumer.
+      if (state.showInput && effIn > 0) {
+        const a = Math.min(0.55, VOL.laneAlpha(effIn, maxIn) * focus + (inspected ? 0.12 : 0));
+        if (a >= 0.015) strokeGeoLine(ctx, route.samplesIn, "rgba(68,255,136," + a.toFixed(3) + ")", inspected ? width * 1.5 : width);
+      }
+      if (state.showOutput && effOut > 0) {
+        const a = Math.min(0.55, VOL.laneAlpha(effOut, maxOut) * focus + (inspected ? 0.12 : 0));
+        if (a >= 0.015) strokeGeoLine(ctx, route.samplesOut, "rgba(255,170,0," + a.toFixed(3) + ")", inspected ? width * 1.5 : width);
+      }
+      if (inspected) strokeGeoLine(ctx, route.samples, "rgba(232,232,232,0.42)", 1.1);
+      if (inspected) for (const v of [route.a, route.b]) {
+        const p = Geo.projectVec(v, state.rotation, view.scale, view.cx, view.cy);
+        if (p[2] > 0) {
+          ctx.beginPath(); ctx.arc(p[0], p[1], 2.6, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(232,232,232,0.9)"; ctx.fill();
         }
       }
     }
@@ -704,7 +762,7 @@ export function createGlobe(container, opts = {}) {
      Position is time-based: t = (clock / duration + phase) mod 1, with the
      input stream running the route in reverse (destination -> origin). */
   const particlePool = Array.from({ length: CFG.particleBudget }, () => ({
-    active: false, key: "", route: null, dir: "out", phase: 0, duration: 1, radius: 1, color: CFG.colors.output
+    active: false, key: "", route: null, dir: "out", phase: 0, duration: 1, radius: 1, train: 6, spacing: 1, color: CFG.colors.output
   }));
   let allocation = new Map();
   let activeStreamList = [];
@@ -739,43 +797,81 @@ export function createGlobe(container, opts = {}) {
         const p = particlePool[idx];
         p.active = true; p.key = s.key; p.route = route; p.dir = s.dir;
         p.phase = (i + 0.5) / count; p.duration = route.durationMs;
-        p.radius = radius; p.color = color;
+        p.radius = radius; p.color = color; p.train = VOL.trainLength(s.volume, maxVolume);
+        // Each carrier's micro-train partitions the interval up to the previous
+        // carrier, so streams read as continuous regardless of carrier count.
+        p.spacing = 1 / count;
       }
     }
     for (; idx < particlePool.length; idx++) particlePool[idx].active = false;
   }
 
+  /* Quality tiers adjust ONLY decorative work (micro-dot count and glow),
+     never geography, lane geometry, route focus or selection visibility. */
+  const quality = { tier: 2, micro: 14, glow: true, fps: 60, visible: 0, lastChange: 0, samples: [] };
+  function adaptQuality(ts, dt) {
+    if (!(dt > 0) || dt > 200) return;
+    quality.samples.push(dt);
+    if (quality.samples.length > 60) quality.samples.shift();
+    if (ts - quality.lastChange < 1500 || quality.samples.length < 30) return;
+    let sum = 0; for (const d of quality.samples) sum += d;
+    const avg = sum / quality.samples.length;
+    quality.fps = Math.round(1000 / avg);
+    if (avg > 24 && quality.tier > 0) quality.tier--;
+    else if (avg < 18 && quality.tier < 2) quality.tier++;
+    else return;
+    quality.lastChange = ts;
+    quality.micro = [4, 9, 14][quality.tier];
+    quality.glow = quality.tier > 0;
+    quality.samples.length = 0;
+  }
   function drawParticles() {
     ctx.save();
     ctx.globalCompositeOperation = earthActive() ? "screen" : "lighter";
     const rot = state.rotation, sc = view.scale, cx = view.cx, cy = view.cy;
     const center = Geo.centerVec(rot);
-    const tails = !state.lowPower;
+    const TAU = Math.PI * 2;
+    const paths = { in: new Path2D(), out: new Path2D() };
+    const halos = { in: new Path2D(), out: new Path2D() };
+    let visible = 0;
     for (const p of particlePool) {
       if (!p.active) continue;
-      let t = ((state.clock / p.duration) + p.phase) % 1;
-      const geoT = p.dir === "in" ? 1 - t : t;
-      const v = p.route.at(geoT);
-      if (Geo.dot(v, center) <= 1e-6) continue; // behind the Earth: hidden immediately
+      const t = ((state.clock / p.duration) + p.phase) % 1;
+      const incoming = p.dir === "in";
+      const laneFn = incoming ? p.route.atIn : p.route.atOut;
+      const v = laneFn(incoming ? 1 - t : t);
+      if (Geo.dot(v, center) <= 1e-6) continue; // backside: concealed immediately
+      visible++;
       const pos = Geo.projectVec(v, rot, sc, cx, cy);
-      const rgb = p.dir === "in" ? "68,255,136" : "255,170,0";
-      if (tails) {
-        const tailAlphas = [0.30, 0.18, 0.09];
-        for (let k = 1; k <= 3; k++) {
-          let tt = t - k * 0.013;
-          if (tt < 0) break; // tail truncates at the route endpoint, never wraps
-          const gv = p.route.at(p.dir === "in" ? 1 - tt : tt);
-          if (Geo.dot(gv, center) <= 1e-6) break;
-          const tp = Geo.projectVec(gv, rot, sc, cx, cy);
-          ctx.beginPath(); ctx.arc(tp[0], tp[1], p.radius * 0.72, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(" + rgb + "," + tailAlphas[k - 1] + ")"; ctx.fill();
-        }
-        ctx.beginPath(); ctx.arc(pos[0], pos[1], p.radius * 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(" + rgb + ",0.13)"; ctx.fill();
+      const path = paths[p.dir], halo = halos[p.dir];
+      const r = p.radius;
+      // Leading carrier + closely spaced micro-particles form one grain train.
+      // Micro-dots are drawn into one batched Path2D per direction: 2 fills per
+      // frame instead of thousands of individual fill() calls.
+      path.moveTo(pos[0] + r, pos[1]); path.arc(pos[0], pos[1], r, 0, TAU);
+      if (quality.glow) {
+        const hr = r * 2.1;
+        halo.moveTo(pos[0] + hr, pos[1]); halo.arc(pos[0], pos[1], hr, 0, TAU);
       }
-      ctx.beginPath(); ctx.arc(pos[0], pos[1], p.radius, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(" + rgb + ",0.95)"; ctx.fill();
+      const micros = Math.min(p.train, quality.micro);
+      const step = p.spacing / (micros + 1);
+      for (let k = 1; k <= micros; k++) {
+        const tt = t - k * step;
+        if (tt < 0) break; // trains truncate at endpoints, never wrap around
+        const gv = laneFn(incoming ? 1 - tt : tt);
+        if (Geo.dot(gv, center) <= 1e-6) break;
+        const q = Geo.projectVec(gv, rot, sc, cx, cy);
+        const mr = Math.max(0.45, r * (0.72 - 0.045 * k));
+        path.moveTo(q[0] + mr, q[1]); path.arc(q[0], q[1], mr, 0, TAU);
+      }
     }
+    quality.visible = visible;
+    if (quality.glow) {
+      ctx.fillStyle = "rgba(68,255,136,0.055)"; ctx.fill(halos.in);
+      ctx.fillStyle = "rgba(255,170,0,0.055)"; ctx.fill(halos.out);
+    }
+    ctx.fillStyle = "rgba(68,255,136,0.88)"; ctx.fill(paths.in);
+    ctx.fillStyle = "rgba(255,170,0,0.88)"; ctx.fill(paths.out);
     ctx.restore();
   }
 
@@ -800,6 +896,7 @@ export function createGlobe(container, opts = {}) {
     rafId = requestAnimationFrame(frame);
     const dt = state.lastFrameTs ? Math.min(ts - state.lastFrameTs, 100) : 16;
     state.lastFrameTs = ts;
+    adaptQuality(ts, dt);
     if (!state.ready) return;
 
     // Spotlight transition (elegant, quick, cancellable by drag).
@@ -1278,6 +1375,8 @@ export function createGlobe(container, opts = {}) {
       showInput: state.showInput, showOutput: state.showOutput, showRoutes: state.showRoutes,
       particles: particlePool.reduce((n, p) => n + (p.active ? 1 : 0), 0),
       particleBudget: state.lowPower ? CFG.particleBudgetLow : CFG.particleBudget,
+      visibleParticles: quality.visible, qualityTier: quality.tier,
+      measuredFps: quality.fps, renderer: earthActive() ? "photographic" : "vector",
       assets: Object.assign({}, state.assets), validation: state.validation,
       frames: state.frames, ready: state.ready, fatal: state.fatal
     };
@@ -1417,7 +1516,11 @@ export function createGlobe(container, opts = {}) {
     setRotation(r) { state.rotation = [r[0], r[1]]; state.baseDirty = true; state.spotlight = null; },
     getRotation: () => state.rotation.slice(),
     setAutoRotate(on) { state.autoRotate = !!on; if (on) state.motionOverride = true; state.lastInteraction = performance.now(); emitChange(); },
-    setLowPower(on) { state.lowPower = !!on; resize(); updateAllocation(); emitChange(); },
+    setLowPower(on) {
+      state.lowPower = !!on; quality.tier = on ? 0 : 2;
+      quality.micro = on ? 3 : 14; quality.glow = !on; quality.samples.length = 0;
+      resize(); updateAllocation(); emitChange();
+    },
     setShowInput(on) { state.showInput = !!on; updateAllocation(); emitChange(); },
     setShowOutput(on) { state.showOutput = !!on; updateAllocation(); emitChange(); },
     setShowRoutes(on) { state.showRoutes = !!on; emitChange(); },
@@ -1426,6 +1529,8 @@ export function createGlobe(container, opts = {}) {
     project: (lon, lat) => Geo.project([lon, lat], state.rotation, view.scale, view.cx, view.cy),
     visibleAt: (lon, lat) => Geo.visible(Geo.toVec(lon, lat), state.rotation),
     particleCount: () => particlePool.reduce((n, p) => n + (p.active ? 1 : 0), 0),
+    perf: () => ({ fps: quality.fps, tier: quality.tier, micro: quality.micro,
+      glow: quality.glow, visible: quality.visible, samples: quality.samples.slice() }),
     allocation: () => Object.fromEntries(allocation),
     volumes: () => Object.fromEntries(currentVolumes()),
     assets: () => Object.assign({}, state.assets),

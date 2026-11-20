@@ -68,7 +68,8 @@ export async function mount(ctx) {
         '<div class="panel" style="margin-top:12px"><div class="panel-head"><h3 class="panel-title">Legend</h3></div><div class="panel-body"><div class="legend">' +
           '<div class="legend-row"><span class="dot in"></span>Input / prompt tokens travelling to the serving location</div>' +
           '<div class="legend-row"><span class="dot out"></span>Output / generated tokens travelling to the consumer</div>' +
-          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:var(--accent)"></span>Particle size & density: relative volume (square-root scale, ≤150 particles)</div>' +
+          '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:var(--accent)"></span>Corridor width, glow &amp; granular stream trains encode relative volume (√ scale, ≤150 reusable carriers; allocation ∝ volume<sup>0.72</sup>)</div>' +
+          '<div class="legend-row"><span class="swatch" style="width:14px;height:2px;background:var(--input-green)"></span><span class="swatch" style="width:14px;height:2px;background:var(--output-amber)"></span>Input/output lanes are offset on the sphere and converge at both endpoints; speed is illustrative, not token throughput</div>' +
           '<div class="legend-row"><span class="ring"></span>Highlighted boundary: selected country</div>' +
           '<div class="legend-row"><span class="swatch" style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#3a5a40,#0a0a0a)"></span>Basemap: NASA Blue Marble + Black Marble (public domain) · day/night boundary computed from the real solar position</div>' +
         "</div></div></div>" +
@@ -191,7 +192,7 @@ export async function mount(ctx) {
       { label: "Output · generated", value: fmtCompact(snap.totals.output), tone: "amber", exact: snap.totals.output, unit: "tokens", sub: "server → consumer" },
       { label: "Active routes", value: String(snap.routeCount), sub: "bilateral pairs" },
       { label: "Countries", value: String(snap.countryCount), sub: "serving + consuming" },
-      { label: "Particles", value: snap.particles + " / " + snap.particleBudget, sub: "square-root volume encoding" }
+      { label: "Particle carriers", value: snap.particles + " / " + snap.particleBudget, sub: "volume^0.72 allocation · not individual tokens" }
     ]);
     document.getElementById("flows-period-badge").textContent = snap.period ? periodShort(snap.period) : "—";
     document.getElementById("flows-coverage").textContent = snap.periods.length + " monthly periods · " + records.length + " synthetic records · evidence class: synthetic";
@@ -284,6 +285,8 @@ export async function mount(ctx) {
     const tick = () => {
       if (!globe) { el.textContent = "FLAT MAP MODE \u00B7 PARTICLE ENGINE OFFLINE"; return; }
       const st = globe.getState();
+      const snap = globe.getSnapshot();
+      const perf = globe.perf();
       const e = globe.getEarth();
       const now = performance.now();
       const fps = Math.max(0, Math.round((st.frames - lastFrames) / Math.max(0.001, (now - lastTs) / 1000)));
@@ -297,7 +300,10 @@ export async function mount(ctx) {
         "  \u00B7  UTC " + utc +
         "  \u00B7  SUBSOLAR " + fmtDeg(ss[0], "E", "W") + " " + fmtDeg(ss[1], "N", "S") +
         "  \u00B7  " + (e.active ? "PHOTO\u00B7SOLAR " + e.textureSize + "PX" : "VECTOR") +
-        "  \u00B7  " + globe.particleCount() + " PTCL  \u00B7  " + fps + " FPS";
+        "  \u00B7  " + globe.particleCount() + "/" + snap.particleBudget + " ALLOC" +
+        "  \u00B7  " + perf.visible + " VISIBLE" +
+        "  \u00B7  Q" + perf.tier + (st.lowPower ? "\u00B7LOW-PWR" : "") +
+        "  \u00B7  " + perf.fps + " FPS-MEASURED";
     };
     tick();
     instrTimer = setInterval(tick, 500);
@@ -345,7 +351,7 @@ export async function mount(ctx) {
     { id: "india", title: "01 — Follow an AI request from India", text: "India appears as both serving country and consuming destination in this synthetic network. Select India to compare its serving and consumption metrics and partner rankings." },
     { id: "hubs", title: "02 — Explore the major serving hubs", text: "Switch the ranking to Serving to see where synthetic inference is modelled as being served. These are fictional relationships, not verified data-centre locations." },
     { id: "consumers", title: "03 — Compare leading consumption destinations", text: "Ranked by total associated synthetic token volume grouped by consuming country — a modelling convention, not a measurement of national AI demand." },
-    { id: "balance", title: "04 — Prompt vs completion token balance", text: "Green particles are prompt tokens travelling consumer → server; amber particles are generated tokens travelling server → consumer. Size and density encode relative volume under a square-root scale." }
+    { id: "balance", title: "04 — Prompt vs completion token balance", text: "Green granular streams are prompt tokens travelling consumer → server; amber streams are generated tokens travelling server → consumer. Stream density, width and luminosity encode relative monthly volume; movement speed is illustrative and does not represent network throughput." }
   ];
   $("flows-stories").innerHTML = ui.panel({
     title: "Guided explorations · synthetic data", span: 3,
