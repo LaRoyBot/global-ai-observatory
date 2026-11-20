@@ -23,7 +23,7 @@
   --warn:#ffaa00;
   --danger:#ff4444;
   --font-mono:"SF Mono","Monaco","Cascadia Code","Fira Code","DejaVu Sans Mono","Liberation Mono",ui-monospace,Consolas,monospace;
-  --font-sans:var(--font-mono);
+  --font-sans:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   --rail-w:212px;
   --topbar-h:52px;
   --radius:4px;

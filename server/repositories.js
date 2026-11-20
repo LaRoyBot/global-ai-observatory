@@ -143,7 +143,7 @@ export const flows = {
     const db = getDb();
     db.exec("BEGIN");
     try {
-      db.prepare("DELETE FROM flow_observations WHERE evidence_class=? AND fixture_version=?").run(evidenceClass, fixtureVersion);
+      db.prepare("DELETE FROM flow_observations WHERE evidence_class=? AND source_id=?").run(evidenceClass, sourceId);
       const ins = db.prepare(`INSERT INTO flow_observations (period,origin_iso3,destination_iso3,input_tokens,output_tokens,attribution_basis,evidence_class,source_id,fixture_version)
         VALUES (?,?,?,?,?,?,?,?,?)`);
       for (const r of records) ins.run(r.period, r.origin, r.destination, r.inputTokens, r.outputTokens, r.attribution_basis || "modelling_convention", evidenceClass, sourceId, fixtureVersion);

@@ -86,7 +86,7 @@ present in `countries` (`{ ISO3: { name, lon, lat } }`). Route key format: `"USA
 ## Design rules (Midnight Observatory)
 
 - Use ONLY the tokens in `src/styles/tokens.css`. No new palettes, no per-workspace colours.
-- Cyan `--input-cyan` = input/prompt. Amber `--output-amber` = output/generated. Violet `--violet` = secondary analytical dimension.
+- Green `--input-green` = input/prompt. Amber `--output-amber` = output/generated. Grey `--estimated` = secondary analytical dimension. Flow streams use ±0.9° spherical lanes; width/glow ∝ √relative volume, carrier allocation ∝ volume^0.72 under a 150/75 budget; carriers are illustrative, not individual tokens.
 - Build UI from `ui.panel`, `ui.statRow`, `ui.rankList`, `ui.table`, `ui.kv`, `ui.tabs`.
 - Every metric panel must show its evidence class (`ui.evidenceBadge`) and, where relevant,
   freshness/availability. Synthetic data must always be visibly labelled.
